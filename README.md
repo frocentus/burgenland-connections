@@ -118,9 +118,9 @@ Index und HTTP-Cache läuft derselbe Aufbau danach in wenigen Sekunden
 ## Ergebnis des Referenzlaufs
 
 ```
-2422 Artikel · 2277 Personen · 7709 Beziehungen · 9360 Nennungen
-Zeitraum 2019-06-03 – 2026-11-14 · 1878 Artikel mit Personennennungen
-672 mit Wikipedia-Artikel · 671 mit Wikidata-Daten
+3953 Artikel · 3153 Personen · 11110 Beziehungen · 14819 Nennungen
+Zeitraum 2019-06-03 – 2026-11-14 · 3032 Artikel mit Personennennungen
+866 mit Wikipedia-Artikel · 825 mit Wikidata-Daten
 ```
 
 Güte auf der geprüften Stichprobe (34 Artikel, 94 Personen,
@@ -334,14 +334,15 @@ für die Zusammenführung zweier Nennungen im Korpus.
 **Gelernte Vornamen:** Ein zweiter Extraktionsdurchlauf sammelt bestätigte
 Nachnamen und sucht im gesamten Text nach „unbekanntes Wort + bekannter
 Nachname“ – das sind fast immer Vornamen („Nikolaus Berlakovich“, auch wenn
-„Nikolaus“ in keiner Liste steht). Im Referenzlauf **281 gelernte Vornamen**.
+„Nikolaus“ in keiner Liste steht). Im Referenzlauf **72 gelernte Vornamen**.
 
-Dabei gilt eine Sperre gegen Rückkopplung: Bereits bestätigte Nachnamen,
-Füllwörter („Causa“, „Herr“), Ortsnamen („Pannonia“), Rollenbezeichnungen und
-Wörter, die im Korpus auch klein vorkommen, werden nie als Vorname gelernt.
-Ein mehrteiliger Name braucht außerdem einen Anker – Vorname, Funktion,
-Parteikürzel oder bestätigter Nachname. Zwei großgeschriebene Wörter genügen
-nicht: „Pannonia Fields“ ist ein Gelände, „Doskozil Hilfe“ ein Satzteil.
+Damit dabei keine Substantive durchrutschen („Abschiedstournee“), gilt eine
+enge Regel: Der Kandidat muss vor **mindestens zwei verschiedenen Nachnamen**
+stehen oder aus einem Wikipedia-Treffer bekannt sein, höchstens 12 Zeichen
+haben, darf keine Substantiv-Endung tragen (-ung, -schaft, -tournee, -erl …),
+kein Ortsadjektiv sein („Eisenstädter“) und nicht im Korpus klein
+vorkommen. Zusätzlich bricht eine Funktion, hinter der ein Artikel steht
+(„Geschäftsführer der neuen Eisenstädter Galerie“), die Erkennung ab.
 
 **Inkrementeller Lauf:** `python run.py --incremental` lädt nur Artikel, deren
 Story-ID noch nicht im Korpus ist, und hängt sie an. Tägliche Aktualisierung in

@@ -402,7 +402,11 @@ def _score_span(span: list[T.Token], sentence: str, tokens: list[T.Token],
         role, role_surface, pos = role_hit
         # „Geschäftsführer der Biowärme“: Genitivartikel -> Organisation, keine Person.
         between = tokens[pos + 1:i]
-        if between and between[-1].text.lower() in {"der", "des", "dem", "den"}:
+        # „Geschäftsführer der neuen Eisenstädter Galerie“: Steht zwischen
+        # Funktion und Kandidat ein Artikel, ist das eine Organisation.
+        if any(token.text.lower() in {"der", "des", "dem", "den", "die", "das",
+                                     "ein", "eine", "einer", "einem", "eines"}
+               for token in between):
             return None
         # Steht zwischen Funktion und Kandidat bereits ein Name, gehört die
         # Funktion zu diesem ("Landeshauptmann Hans Peter Doskozil … Doskozil Hilfe").
@@ -524,6 +528,9 @@ def extract_article(article: Article, ctx: ExtractionContext,
     sentences: list[str] = []
     sentence_units: list[str] = []
     for unit, text_value in units:
+        # Verweis- und Teaserlisten („… | … | …“) enthalten keine Personen.
+        if text_value.count("|") >= 2:
+            continue
         for sent in T.split_sentences(text_value):
             sentences.append(sent)
             sentence_units.append(unit)

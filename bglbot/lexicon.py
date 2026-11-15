@@ -759,6 +759,28 @@ NICKNAMES: dict[str, tuple[str, ...]] = {
 }
 
 
+#: Endungen, die ein Substantiv verraten („Abschiedstournee“, „Jubiläum“).
+#: Vornamen sind kurz und enden selten so – die Liste ergänzt THING_SUFFIXES.
+NON_NAME_SUFFIXES = (
+    "tournee", "tour", "jubiläum", "fest", "feier", "abschluss", "abschied",
+    "auftakt", "finale", "saison", "derby", "duell", "match", "spiel",
+    "turnier", "meeting", "gala", "show", "konzert", "album", "single",
+    "reise", "ausstellung", "eröffnung", "einweihung", "programm", "projekt",
+    "aktion", "kampagne", "bilanz", "konzept", "strategie", "reform",
+    # österreichische Diminutive und Speisen
+    "erl", "erln", "chen", "lein", "wurst", "salat", "suppe", "kuchen",
+    "torte", "wein", "bier", "saft", "knödel", "strudel", "tascherl",
+)
+
+
+def looks_like_noun(word: str) -> bool:
+    """Heuristik: sieht das Wort wie ein Substantiv aus (und nicht wie ein Vorname)?"""
+    low = word.lower()
+    if ends_with_thing(low) or is_generic(low):
+        return True
+    return any(low.endswith(suffix) for suffix in NON_NAME_SUFFIXES)
+
+
 def canonical_first_name(name: str) -> str:
     """Vergleichsform des Vornamens: „Grete“ und „Margarethe“ werden gleich."""
     first = re.split(r"[-\s]+", name.strip())[0].lower()

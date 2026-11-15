@@ -126,15 +126,40 @@ def learn_first_names(articles: list[parse.Article], ctx, exclude: set[str] | No
                         continue
                     first = candidate.lower()
                     # Bereits bestätigte Nachnamen und Füllwörter nie als Vornamen lernen.
-                    if (len(first) < 3 or first in surnames or lexicon.is_generic(first)
-                            or first in ctx.geo or first in lexicon.ROLE_SURFACES
-                            or first in ctx.common_nouns):
+                    if (len(first) < 3 or len(first) > 12 or first in surnames
+                            or lexicon.looks_like_noun(first) or first in ctx.geo
+                            or first in lexicon.ROLE_SURFACES or first in ctx.common_nouns):
+                        continue
+                    # „Eisenstädter“ ist ein Adjektiv zum Ort Eisenstadt.
+                    if any(first.startswith(geo[:6]) and len(geo) >= 6
+                           and len(first) > len(geo) for geo in ctx.geo):
                         continue
                     followers.setdefault(first, set()).add(following.lower())
-    ctx.extra_first_names = {name for name, names in followers.items() if len(names) >= 1}
+    # Ein echter Vorname steht vor verschiedenen Nachnamen; einmalige Treffer
+    # sind fast immer Substantive („Abschiedstournee“).
+    # Positivliste: Vornamen aus den Wikipedia-Treffern früherer Läufe. Sie sind
+    # belegt und verhindern, dass seltene, aber echte Vornamen verloren gehen.
+    known_names = set(lexicon.FIRST_NAMES)
+    wiki_cache = config.DATA_DIR / "wiki.json"
+    if wiki_cache.exists():
+        try:
+            for entry in json.loads(wiki_cache.read_text(encoding="utf-8")).values():
+                title = (entry or {}).get("title") or ""
+                parts = title.split()
+                if len(parts) >= 2:
+                    known_names.add(parts[0].lower())
+        except (ValueError, OSError):
+            pass
+
+    ctx.extra_first_names = {
+        name for name, names in followers.items()
+        if len(names) >= 2 or name in known_names
+    }
     if ctx.extra_first_names:
+        longest = sorted(ctx.extra_first_names, key=len, reverse=True)[:3]
         log(f"  Vornamen gelernt: {len(ctx.extra_first_names)} "
-            f"(z. B. {', '.join(sorted(ctx.extra_first_names)[:5])})")
+            f"(z. B. {', '.join(sorted(ctx.extra_first_names)[:5])}; "
+            f"längste: {', '.join(longest)})")
     return ctx.extra_first_names
 
 
