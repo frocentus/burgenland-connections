@@ -12,6 +12,34 @@ from pathlib import Path
 from . import config, pipeline
 
 
+def _serve_and_open(out_dir: Path) -> None:
+    """Startet einen lokalen Server und öffnet die Grafik im Browser.
+
+    Die Seite lädt ihre Daten per fetch(); über file:// würde der Browser das
+    blockieren. Ein kleiner Server auf 127.0.0.1 löst das ohne Zusatzpakete.
+    """
+    import functools
+    import http.server
+    import socket
+    import threading
+    import webbrowser
+
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        port = probe.getsockname()[1]
+    handler = functools.partial(http.server.SimpleHTTPRequestHandler,
+                                directory=str(out_dir))
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", port), handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    url = f"http://127.0.0.1:{port}/index.html"
+    print(f"Server läuft auf {url} (Strg+C beendet ihn)")
+    webbrowser.open(url)
+    try:
+        threading.Event().wait()
+    except KeyboardInterrupt:
+        server.shutdown()
+
+
 def _print_summary(graph: dict) -> None:
     meta = graph["meta"]
     print()
@@ -98,10 +126,10 @@ def main(argv: list[str] | None = None) -> int:
     )
     _print_summary(graph)
     print(f"\nFertig in {time.time() - started:.1f}s")
-    html = args.out / "graph.html"
+    html = args.out / "index.html"
     print(f"Grafik: {html}")
     if args.open:
-        webbrowser.open(html.resolve().as_uri())
+        _serve_and_open(args.out)
     return 0
 
 

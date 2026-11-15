@@ -24,7 +24,9 @@ from . import config
 RELEASE_TAG = "data"
 RELEASE_TITLE = "Aktuelle Auswertung (burgenland.ORF.at)"
 SITE_FILES = {
-    "graph.html": "index.html",
+    "index.html": "index.html",
+    "app.js": "app.js",
+    "d3.v7.min.js": "d3.v7.min.js",
     "graph.json": "graph.json",
     "personen.csv": "personen.csv",
     "beziehungen.csv": "beziehungen.csv",
@@ -43,9 +45,9 @@ def _run(command: list[str], *, cwd: Path | None = None, check: bool = True) -> 
 
 def build_site(out_dir: Path, site_dir: Path) -> Path:
     """Kopiert die Ausgabedateien in eine Web-Struktur und zippt sie."""
-    if not (out_dir / "graph.html").exists():
+    if not (out_dir / "index.html").exists():
         raise SystemExit(
-            f"{out_dir / 'graph.html'} fehlt – bitte zuerst 'python run.py' ausführen."
+            f"{out_dir / 'index.html'} fehlt – bitte zuerst 'python run.py' ausführen."
         )
     if site_dir.exists():
         shutil.rmtree(site_dir)

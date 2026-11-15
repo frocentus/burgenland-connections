@@ -185,7 +185,7 @@ def write_outputs(extractions, persons, out_dir: Path = config.OUT_DIR, log=prin
             ]
             fh.write(json.dumps(record, ensure_ascii=False) + "\n")
 
-    html_path = render.render_html(graph_data, out_dir / "graph.html")
+    html_path = render.render_html(graph_data, out_dir / "index.html")
     try:
         preview.render_png(graph_data, out_dir / "netzwerk.png")
         preview_note = ", netzwerk.png"

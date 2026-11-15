@@ -258,6 +258,62 @@ def edge_list_sentiment(edge_list: list[dict]) -> list[str]:
     return [(e.get("sentiment") or {}).get("label", "neutral") for e in edge_list]
 
 
+def _detect_communities(edge_list: list[dict], rounds: int = 50,
+                        min_size: int = 5) -> dict[str, int]:
+    """Findet Netzwerk-Cluster per Louvain-Verfahren (lokale Modularitäts-Optimierung).
+
+    Grundlage ist die Beziehungsstärke (gemeinsame Sätze), nicht die reine
+    Ko-Nennung: Cluster sollen dort entstehen, wo wirklich miteinander
+    gesprochen wird. Kleine Gruppen (< min_size) bleiben ohne Label.
+    """
+    adjacency: dict[str, dict[str, float]] = {}
+    for edge in edge_list:
+        if (edge.get("strength") or 0) <= 0:
+            continue
+        weight = float(edge["strength"])
+        adjacency.setdefault(edge["source"], {})[edge["target"]] = weight
+        adjacency.setdefault(edge["target"], {})[edge["source"]] = weight
+    if not adjacency:
+        return {}
+
+    degree = {node: sum(neighbours.values()) for node, neighbours in adjacency.items()}
+    total = sum(degree.values()) or 1.0
+    community = {node: node for node in adjacency}
+    community_degree = {node: degree[node] for node in adjacency}
+
+    for _ in range(rounds):
+        moved = 0
+        for node in sorted(adjacency):
+            current = community[node]
+            community_degree[current] -= degree[node]
+            weights: Counter = Counter()
+            for neighbour, weight in adjacency[node].items():
+                weights[community[neighbour]] += weight
+            share = degree[node] / total
+            best, best_gain = current, weights.get(current, 0.0) - community_degree[current] * share
+            for candidate, weight in weights.items():
+                gain = weight - community_degree[candidate] * share
+                if gain > best_gain + 1e-12:
+                    best, best_gain = candidate, gain
+            community[node] = best
+            community_degree[best] += degree[node]
+            if best != current:
+                moved += 1
+        if not moved:
+            break
+
+    groups: dict[str, list[str]] = {}
+    for node, label in community.items():
+        groups.setdefault(label, []).append(node)
+    ordered = sorted(groups.values(), key=len, reverse=True)
+    result: dict[str, int] = {}
+    for index, members in enumerate(ordered):
+        if len(members) < min_size:
+            continue
+        for node in members:
+            result[node] = index
+    return result
+
 def build_graph(extractions: list[ArticleExtraction], persons: list[Person],
                 wiki: dict[str, dict] | None = None,
                 wikidata: dict[str, dict] | None = None) -> dict:
@@ -562,6 +618,17 @@ def build_graph(extractions: list[ArticleExtraction], persons: list[Person],
         })
     edge_list.sort(key=lambda x: (-x["strength"], -x["weight"], -x["sentences"]))
 
+    # Netzwerk-Cluster (Label-Propagation über die Beziehungsstärke).
+    communities = _detect_communities(edge_list)
+    for node in nodes:
+        node["community"] = communities.get(node["id"])
+    sizes = Counter(cid for cid in communities.values())
+    representatives: dict[str, str] = {}
+    for node in sorted(nodes, key=lambda n: -n["degree"]):
+        cid = node.get("community")
+        if cid is not None and str(cid) not in representatives:
+            representatives[str(cid)] = node["name"]
+
     dates = sorted(m["date"] for m in articles_meta.values() if m.get("date"))
     meta = {
         "generated": dt.datetime.now().isoformat(timespec="seconds"),
@@ -575,6 +642,9 @@ def build_graph(extractions: list[ArticleExtraction], persons: list[Person],
         "date_to": dates[-1] if dates else "",
         "categories": dict(Counter(m.get("category") or "Chronik"
                                    for m in articles_meta.values()).most_common()),
+        "communities": len(sizes),
+        "community_sizes": {str(cid): count for cid, count in sizes.most_common()},
+        "community_labels": representatives,
     }
     # Klar getrennt: Artikel mit mindestens einer Person vs. mit mindestens
     # einer Beziehung (zwei Personen im selben Artikel).
