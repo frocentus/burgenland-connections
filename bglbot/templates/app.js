@@ -59,7 +59,7 @@
   let view = {x:0, y:0, k:1};
   const nodes = DATA.nodes.map(n => ({...n, x:0, y:0, vx:0, vy:0, r:0, visible:true, fixed:false}));
   const nodeIndex = new Map(nodes.map(n => [n.id, n]));
-  nodes.forEach(n => { n.r = 5 + Math.sqrt(n.articles) * 3.2 + Math.min(9, n.mentions * 0.35); });
+  nodes.forEach(n => { n.r = Math.min(42, 5 + Math.sqrt(n.articles) * 3.2 + Math.min(9, n.mentions * 0.35)); });
 
   const edges = DATA.edges.map(e => ({...e, visible:true}));
 
@@ -86,7 +86,7 @@
           .strength(e => Math.min(0.9, 0.3 + 0.08 * Math.min(8, e.weight))))
         .force("charge", d3.forceManyBody().strength(-95).distanceMax(620))
         .force("center", d3.forceCenter(0, 0))
-        .force("collide", d3.forceCollide(d => (d.r || 5) + 3).strength(0.85))
+        .force("collide", d3.forceCollide(d => (d.r || 5) + 2).strength(1).iterations(2))
         .stop();
       sim.alpha(1).alphaDecay(0.022);
       for (let i = 0; i < iterations; i++) sim.tick();
@@ -98,6 +98,7 @@
         }
         nd.vx = 0; nd.vy = 0;
       });
+      separate();
       return;
     }
 
@@ -171,6 +172,44 @@
     }
   }
 
+  // Überlappungen hart auflösen: d3.forceCollide arbeitet iterativ und lässt
+  // bei sehr unterschiedlichen Radien Restüberlappungen zurück.
+  function separate(passes = 90){
+    const CELL = 150;
+    for (let pass = 0; pass < passes; pass++){
+      const grid = new Map();
+      for (const nd of nodes){
+        const key = Math.floor(nd.x/CELL) + ":" + Math.floor(nd.y/CELL);
+        const bucket = grid.get(key);
+        if (bucket) bucket.push(nd); else grid.set(key, [nd]);
+      }
+      let moved = 0;
+      for (const a of nodes){
+        const cx = Math.floor(a.x/CELL), cy = Math.floor(a.y/CELL);
+        for (let gx = cx-1; gx <= cx+1; gx++){
+          for (let gy = cy-1; gy <= cy+1; gy++){
+            const bucket = grid.get(gx + ":" + gy);
+            if (!bucket) continue;
+            for (const b of bucket){
+              if (b === a) continue;
+              let dx = b.x - a.x, dy = b.y - a.y;
+              let d = Math.hypot(dx, dy);
+              const min = (a.r || 5) + (b.r || 5) + 2;
+              if (d >= min) continue;
+              if (d < 0.01){ dx = Math.random() - 0.5; dy = Math.random() - 0.5; d = 0.01; }
+              const push = (min - d) / 2 + 0.1;
+              const ux = dx / d, uy = dy / d;
+              a.x -= ux * push; a.y -= uy * push;
+              b.x += ux * push; b.y += uy * push;
+              moved++;
+            }
+          }
+        }
+      }
+      if (!moved) break;
+    }
+  }
+
   // ---------- Rendering ----------
   const canvas = document.getElementById("graph");
   const ctx = canvas.getContext("2d");
@@ -196,6 +235,7 @@
   }
 
   function draw(){
+    const placedLabels = [];
     const w = W(), h = H();
     ctx.clearRect(0,0,w,h);
     const highlight = new Set();
@@ -235,7 +275,7 @@
     nodes.forEach(n => {
       if (!n.visible) return;
       const p = toScreen(n);
-      const r = Math.max(3, n.r * Math.sqrt(view.k));
+      const r = Math.max(2.5, n.r * view.k);
       const isSel = state.selected === n.id;
       const isHover = state.hover === n;
       const inHighlight = !state.selected || highlight.has(n.id);
@@ -271,7 +311,7 @@
     const vis = visibleNodes().slice().sort((a,b)=>b.r-a.r);
     for (const n of vis){
       const p = toScreen(n);
-      const r = Math.max(4, n.r*Math.sqrt(view.k)) + 3;
+      const r = Math.max(3.5, n.r * view.k) + 3;
       if ((sx-p.x)**2 + (sy-p.y)**2 <= r*r) return n;
     }
     return null;
@@ -938,18 +978,23 @@
     if (!vis.length) return;
     // Perzentil-Grenzen statt Min/Max: Einzelne Ausreißer weit draußen würden
     // sonst den Maßstab so klein machen, dass der Kern verschwindet.
-    const finite = vis.filter(n => Number.isFinite(n.x) && Number.isFinite(n.y));
+    // Für den Bildausschnitt zählt der Zusammenhang, nicht die Randnotizen:
+    // Knoten mit mindestens zwei Beziehungen bilden den Kern.
+    const core = vis.filter(n => Number.isFinite(n.x) && Number.isFinite(n.y) && (n.degree || 0) >= 2);
+    const finite = core.length > vis.length * 0.25
+      ? core
+      : vis.filter(n => Number.isFinite(n.x) && Number.isFinite(n.y));
     if (!finite.length) { view.k = 0.5; view.x = W()/2; view.y = H()/2; return; }
     const xs = finite.map(n => n.x).sort((a,b) => a-b);
     const ys = finite.map(n => n.y).sort((a,b) => a-b);
     const pick = (arr, q) => arr[Math.min(arr.length-1, Math.max(0, Math.floor(q*(arr.length-1))))];
-    const lo = 0.04, hi = 0.96;
+    const lo = 0.08, hi = 0.92;
     let minX = pick(xs, lo), maxX = pick(xs, hi), minY = pick(ys, lo), maxY = pick(ys, hi);
     if (!Number.isFinite(minX) || !Number.isFinite(maxX) || maxX - minX > 40000 || maxY - minY > 40000){
       view.k = 0.5; view.x = W()/2; view.y = H()/2; return;
     }
     const pad = 90;
-    const k = Math.min(2.4, 1.08 * Math.min((W()-pad*2)/Math.max(1,maxX-minX), (H()-pad*2)/Math.max(1,maxY-minY)));
+    const k = Math.min(3.5, 1.1 * Math.min((W()-pad*2)/Math.max(1,maxX-minX), (H()-pad*2)/Math.max(1,maxY-minY)));
     view.k = Math.max(0.2, k);
     view.x = W()/2 - (minX+maxX)/2 * view.k;
     view.y = H()/2 - (minY+maxY)/2 * view.k;
@@ -977,7 +1022,7 @@
   }
   document.getElementById("loading").classList.remove("on");
   // Für Fehlersuche im Browser: window.__DBG__ in der Konsole inspizierbar.
-  window.__DBG__ = {nodes, edges, state, get visibleNodes(){return nodes.filter(n=>n.visible).length;},
+  window.__DBG__ = {nodes, edges, state, view, separate, simulate, get visibleNodes(){return nodes.filter(n=>n.visible).length;},
                     get visibleEdges(){return edges.filter(e=>e.visible).length;},
                     get positions(){return nodes.slice(0,5).map(n=>({name:n.name,x:n.x,y:n.y}));}};
 })();
