@@ -479,7 +479,12 @@ def build_graph(extractions: list[ArticleExtraction], persons: list[Person],
         neighbours = [e for e in edges.values() if pid in (e.a, e.b)]
         top = sorted(neighbours, key=lambda e: (-e.weight, -e.sentences))[:5]
         data = person.to_dict()
-        data["wikipedia"] = (wiki or {}).get(person.name) or None
+        source = (wiki or {}).get(person.name) or None
+        if source:
+            source = dict(source)
+            if source.get("extract"):
+                source["extract"] = source["extract"][:420]
+        data["wikipedia"] = source
         wd = (wikidata or {}).get(person.name) or None
         data["wikidata"] = wd
         if wd and not data.get("party"):
@@ -501,7 +506,8 @@ def build_graph(extractions: list[ArticleExtraction], persons: list[Person],
             "critical": entry["critical"],
             "praising": entry["praising"],
             "parties": [{"party": k, "count": v} for k, v in entry["parties"].most_common(4)],
-            "examples": entry["examples"][:2],
+            "examples": [{**example, "sentence": example["sentence"][:200]}
+                         for example in entry["examples"][:1]],
         }
         neighbours_all = [e for e in edges.values() if pid in (e.a, e.b)]
         data.update({
@@ -511,11 +517,10 @@ def build_graph(extractions: list[ArticleExtraction], persons: list[Person],
             "positive_edges": sum(1 for e in neighbours_all
                                   if e.sentiment_label in ("positiv", "gemischt") and e.sentiment_label != "gemischt"),
             "co_articles": co_article_count[pid],
-            "top_partners": [
-                {"id": (e.b if e.a == pid else e.a), "weight": e.weight} for e in top
-            ],
-            "article_list": sorted(person_articles[pid], key=lambda m: m["date"],
-                                   reverse=True)[:40],
+
+            "article_list": [{**item, "title": item["title"][:110]}
+                             for item in sorted(person_articles[pid],
+                                                key=lambda m: m["date"], reverse=True)[:24]],
         })
         nodes.append(data)
 
@@ -535,7 +540,9 @@ def build_graph(extractions: list[ArticleExtraction], persons: list[Person],
             "years": dict(sorted(e.years.items())),
             "signals": dict(e.signals),
             "dominant_signal": e.dominant_signal,
-            "sentiment": {
+            # Nur bewertete Kanten tragen das volle Objekt; „neutral“ ist der
+            # Normalfall und würde ~900 KB der Seite ausmachen.
+            **({"sentiment": {
                 "label": e.sentiment_label,
                 "score": e.sentiment_score,
                 "positive": round(e.positive, 2),
@@ -544,9 +551,14 @@ def build_graph(extractions: list[ArticleExtraction], persons: list[Person],
                 "evidence": round(e.positive + e.negative, 2),
                 "sentences": e.sentiment_sentences,
                 "direction": dict(e.direction),
-            },
-            "articles": sorted(e.articles)[:24],
-            "examples": e.examples[:2],
+            }} if e.sentiment_label != "neutral" else {}),
+            "articles": sorted(e.articles)[:8],
+            # Belegsätze nur gekürzt einbetten: Sie machen den größten Teil der
+            # Seitengröße aus. Volle Sätze stehen in artikel.jsonl.
+            "examples": [
+                {**example, "sentence": example["sentence"][:400 if e.sentiment_label != "neutral" else 200]}
+                for example in e.examples[:1]
+            ],
         })
     edge_list.sort(key=lambda x: (-x["strength"], -x["weight"], -x["sentences"]))
 

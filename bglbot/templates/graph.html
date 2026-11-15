@@ -79,6 +79,12 @@
   blockquote{margin:6px 0;padding:7px 10px;background:var(--panel-2);border-left:2px solid var(--accent);
     border-radius:0 6px 6px 0;font-size:12.5px;color:#cfd8e3}
   .empty{color:var(--muted);font-size:13px;padding:20px 4px}
+  .loading{position:fixed;inset:0;z-index:50;display:none;align-items:center;justify-content:center;
+    flex-direction:column;gap:14px;background:rgba(13,17,23,.96);color:#cfd8e3;font-size:14px}
+  .loading.on{display:flex}
+  .spinner{width:34px;height:34px;border-radius:50%;border:3px solid #26303d;border-top-color:#4da3ff;
+    animation:spin 0.9s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
   .tooltip{position:absolute;pointer-events:none;background:#0b1118;border:1px solid var(--line);
     border-radius:7px;padding:6px 9px;font-size:12px;max-width:280px;opacity:0;transition:opacity .12s;z-index:10}
   .tooltip.on{opacity:1}
@@ -91,6 +97,7 @@
 </style>
 </head>
 <body>
+<div id="loading" class="loading"><div class="spinner"></div><div>Netzwerk wird aufgebaut …</div></div>
 <div class="app">
   <header>
     <h1>Personennetzwerk <span>burgenland.ORF.at</span></h1>
@@ -1043,9 +1050,10 @@
   }
 
   // ---------- Start ----------
+  document.getElementById("loading").classList.add("on");
   resize();
   initLayout();
-  const iterations = nodes.length > 1200 ? 90 : nodes.length > 700 ? 140 : 260;
+  const iterations = nodes.length > 1500 ? 55 : nodes.length > 1200 ? 80 : nodes.length > 700 ? 140 : 260;
   simulate(iterations);
   const maxWeight = Math.max(...DATA.edges.map(e => e.weight), 3);
   const slider = document.getElementById("weight");
@@ -1061,6 +1069,7 @@
     const a = nodeIndex.get(top.source);
     if (a){ selectNode(a.id); }
   }
+  document.getElementById("loading").classList.remove("on");
 })();
 </script>
 </body>
