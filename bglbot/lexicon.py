@@ -172,7 +172,9 @@ _role("präsident", "präsidentin", "ehrenpräsident", "ehrenpräsidentin",
 _role("vizepräsident", "vizepräsidentin",
       canonical="vizepräsident", label="Vizepräsident/in", category="organisation", rank=20)
 _role("sprecher", "sprecherin", "pressesprecher", "pressesprecherin",
-      canonical="sprecher", label="Sprecher/in", category="organisation", rank=41)
+      "redakteur", "redakteurin", "chefredakteur", "chefredakteurin",
+      "journalist", "journalistin", "moderator", "moderatorin",
+      canonical="sprecher", label="Sprecher/in bzw. Redaktion", category="organisation", rank=41)
 _role("intendant", "intendantin", "festivalleiter", "festivalleiterin",
       "museumsleiter", "museumsleiterin", "kurator", "kuratorin",
       canonical="kultureinrichtung", label="Kulturinstitution (Leitung)", category="kultur", rank=40)
@@ -272,6 +274,10 @@ FIRST_NAMES = {
     "kathrin", "kerstin", "mario", "marcel", "rene", "sandra", "tanja", "theresa",
     "bernd", "rory", "jon", "lukas", "maximilian", "simon", "oliver", "patrick",
     "grete", "josko", "greta", "grethe", "joso", "vlado", "ivan", "marija",
+    "nikolaus", "marina", "angelika", "bettina", "silvio", "zoltan", "gert",
+    "charley", "herbert", "ursula", "ingrid", "helmut", "otto", "lisa",
+    "ronald", "josef", "julia", "andreas", "michael", "franz", "karl",
+    "werner", "rudi", "hansjörg", "wolfdieter", "kurt", "hubert", "gottfried",
     "benjamin", "elias", "jonas", "leon", "lena", "luca", "noah", "emil",
     "hannah", "marlene", "sophie", "valerie", "victoria", "alexander",
     "raphaela", "marin", "veronika", "kristina", "corina", "rosa", "wolfgang",
@@ -463,6 +469,15 @@ GEO_WORDS = {
     "winden", "jois", "neusiedl", "weiden", "gattendorf", "zurndorf",
     "pama", "kroatisch", "minihof", "geresdorf", "rosental", "podgoria",
     "krobotek", "weichselbaum", "hochstraß", "eisenberg", "pinka", "pinkatal",
+}
+
+#: Wörter, die einem Namen direkt folgen und ihn als Institution entlarven
+#: ("Konrad Adenauer Stiftung", "Thomas-Morus-Preis").
+INSTITUTION_WORDS = {
+    "stiftung", "institut", "instituts", "preis", "preises", "platz", "straße",
+    "strasse", "gasse", "weg", "schule", "schulzentrum", "gymnasium", "heim",
+    "klinik", "haus", "zentrum", "museum", "galerie", "verein", "verband",
+    "gmbh", "ag", "kg", "bank", "kasse", "kammer", "staat", "gemeinde",
 }
 
 #: Oberflächen, die zwar wie Namen aussehen, aber keine Personen sind.

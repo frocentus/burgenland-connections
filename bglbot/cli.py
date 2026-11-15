@@ -63,6 +63,8 @@ def main(argv: list[str] | None = None) -> int:
                         help="Nur den vorhandenen Graphen zusammenfassen")
     parser.add_argument("--rebuild", action="store_true",
                         help="Aus data/out/artikel.jsonl neu auswerten (ohne Crawling)")
+    parser.add_argument("--holdout", action="store_true",
+                        help="Goldstandard-Artikel vom Vornamen-Lernen ausnehmen (ehrliche Messung)")
     parser.add_argument("--incremental", action="store_true",
                         help="Nur neue Artikel laden und an den bestehenden Korpus anhängen")
     parser.add_argument("--out", type=Path, default=config.OUT_DIR,
@@ -89,6 +91,7 @@ def main(argv: list[str] | None = None) -> int:
         skip_wiki=args.no_wiki,
         rebuild=args.rebuild,
         incremental=args.incremental,
+        holdout=args.holdout,
     )
     _print_summary(graph)
     print(f"\nFertig in {time.time() - started:.1f}s")

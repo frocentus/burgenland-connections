@@ -118,14 +118,16 @@ Index und HTTP-Cache läuft derselbe Aufbau danach in wenigen Sekunden
 ## Ergebnis des Referenzlaufs
 
 ```
-1298 Artikel · 1323 Personen · 4029 Beziehungen · 5079 Nennungen
-Zeitraum 2019-06-03 – 2026-11-14 · 1004 Artikel mit Personennennungen
-davon 60 Beziehungen mit erkennbarem Beziehungston · 409 mit Wikipedia-Artikel
-408 mit Wikidata-Daten · 956 Beziehungen mit gemeinsamem Satz
+1298 Artikel · 1447 Personen · 4698 Beziehungen · 5521 Nennungen
+Zeitraum 2019-06-03 – 2026-11-14 · 1035 Artikel mit Personennennungen
+davon 60 Beziehungen mit erkennbarem Beziehungston · 432 mit Wikipedia-Artikel
+428 mit Wikidata-Daten · 843 Beziehungen mit gemeinsamem Satz
 ```
 
-Güte auf der geprüften Stichprobe (`python -m bglbot.evaluate`):
-**Precision 1,000 · Recall 0,938 · F1 0,968** (6 Artikel, 16 Personen).
+Güte auf der geprüften Stichprobe (34 Artikel, 94 Personen,
+`python -m bglbot.evaluate`): **Precision 1,000 · Recall 1,000 · F1 1,000**.
+Auch mit **Holdout** (`--holdout`: die 34 Artikel werden beim Vornamen-Lernen
+ausgelassen) bleibt es bei 1,000 – die gelernten Vornamen generalisieren.
 
 Spitzenreiter: Hans Peter Doskozil (73 Artikel, 138 Beziehungen),
 Anja Haider-Wallner (28), Heinrich Dorner (25), Leonhard Schneemann (25),
@@ -330,10 +332,12 @@ Von 1.323 Personen sind das 979 Einmal-Nennungen, die sonst das Bild füllen.
 „Hans“→Johann und rund 50 weitere ab – sowohl für die Wikipedia-Suche als auch
 für die Zusammenführung zweier Nennungen im Korpus.
 
-**Gelernte Vornamen:** Ein zweiter Extraktionsdurchlauf lernt Vornamen aus dem
-eigenen Korpus (Wörter, die dort ≥2× vor einem Nachnamen stehen) und erkennt
-damit Namen, die in keiner Liste stehen. Im Referenzlauf 187 zusätzliche
-Vornamen, +31 Personen.
+**Gelernte Vornamen:** Ein zweiter Extraktionsdurchlauf sammelt bestätigte
+Nachnamen und sucht im gesamten Text nach „unbekanntes Wort + bekannter
+Nachname“ – das sind fast immer Vornamen („Nikolaus Berlakovich“, auch wenn
+„Nikolaus“ in keiner Liste steht). Im Referenzlauf **299 gelernte Vornamen**,
++124 Personen. Mit `--holdout` lassen sich die Artikel der Evaluationsstichprobe
+vom Lernen ausnehmen, um die Wirkung ehrlich zu messen.
 
 **Inkrementeller Lauf:** `python run.py --incremental` lädt nur Artikel, deren
 Story-ID noch nicht im Korpus ist, und hängt sie an. Tägliche Aktualisierung in
@@ -348,9 +352,17 @@ erzeugt eine statische Annotationsseite (`eval/annotate.html`), in der man
 Personen anklickt, fehlende Namen ergänzt und den Goldstandard als JSON
 exportiert – ohne Server, ohne Datenversand.
 
-Der einzige verfehlte Fall im aktuellen Sample ist bezeichnend: „Silvio Samoni“
-wird nicht erkannt, weil „Silvio“ in keiner Vornamenliste steht und der Satz
-(„Stargast ist Silvio Samoni“) keine Funktionsbezeichnung enthält.
+Die verbleibenden Fehlerklassen sind im Sample nicht mehr vertreten, dafür
+wurden zwei behoben: „Konrad Adenauer Stiftung“ erzeugte eine Person (jetzt
+blockieren Institutionswörter wie *Stiftung*, *Preis*, *Platz* den Kandidaten),
+und Rollen in Komposita („Landwirtschaftskammerpräsidenten“) werden über
+Endungs-Toleranz erkannt.
+
+**Einschränkung der Messung:** Die Stichprobe wurde aus Artikeln gezogen, in
+denen der Bot 2–8 Personen gefunden hat. Artikel ohne erkannte Person sind
+nicht enthalten – dort sitzen die Recall-Verluste. Für eine belastbare Zahl
+muss die Stichprobe zufällig über alle Artikel streuen. Die 1.000 sind daher
+eine Obergrenze, keine Gesamtgüte.
 
 ## Fehlende Artikel ergänzen
 

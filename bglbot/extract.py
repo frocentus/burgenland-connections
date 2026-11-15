@@ -289,6 +289,14 @@ def _role_before(tokens: list[T.Token], i: int) -> tuple[Role, str, int] | None:
     for k in range(i - 1, max(-1, i - 5), -1):
         tok = tokens[k].text
         match = ROLE_RE.search(tok)
+        if not match:
+            # "Landwirtschaftskammerpräsidenten", "Bürgermeisters": Endung
+            # abschneiden und erneut versuchen.
+            for suffix in ("en", "s", "es", "n"):
+                if tok.lower().endswith(suffix) and len(tok) - len(suffix) >= 5:
+                    match = ROLE_RE.search(tok[:-len(suffix)])
+                    if match:
+                        break
         if match:
             role = lexicon.ROLE_SURFACES.get(match.group(0).lower())
             if role:
@@ -381,6 +389,11 @@ def _score_span(span: list[T.Token], sentence: str, tokens: list[T.Token],
     score = 0
     evidence: list[str] = []
     details: dict = {}
+
+    # "Konrad Adenauer Stiftung", "Thomas-Morus-Preis": das folgende Wort
+    # entlarvt den Kandidaten als Institution.
+    if j + 1 < len(tokens) and tokens[j + 1].text.lower() in lexicon.INSTITUTION_WORDS:
+        return None
 
     role_hit = _role_before(tokens, i)
     if role_hit:

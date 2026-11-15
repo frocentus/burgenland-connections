@@ -7,7 +7,9 @@ from pathlib import Path
 
 from collections import Counter
 
-from . import config, discover, gazetteer, graph as G, lexicon, parse, preview, render, resolve, wayback, wiki, wikidata
+from . import config, discover, gazetteer, graph as G, lexicon, parse, preview, render, resolve
+from . import text
+from . import wayback, wiki, wikidata
 from .extract import ExtractionContext, extract_article
 from .http import Fetcher, FetchError
 
@@ -93,30 +95,54 @@ def load_articles_from_jsonl(path: Path, log=print) -> list[parse.Article]:
     return articles
 
 
-def analyse(articles: list[parse.Article], log=print, wiki_refresh: bool = False):
+def learn_first_names(articles: list[parse.Article], ctx, exclude: set[str] | None = None,
+                      log=print) -> set[str]:
+    """Lernt Vornamen aus „unbekanntes Wort + bestätigter Nachname“ im Korpus.
+
+    ``exclude`` erlaubt eine Holdout-Messung: Die Artikel der Evaluationsstichprobe
+    werden dann nicht zum Lernen verwendet.
+    """
+    exclude = exclude or set()
+    baseline = [extract_article(article, ctx) for article in articles
+                if article.id not in exclude]
+    surnames = {person.surname.lower() for extraction in baseline
+                for person in extraction.persons if len(person.name.split()) >= 2}
+    learned: Counter = Counter()
+    for article in articles:
+        if article.id in exclude:
+            continue
+        for block in (article.title, article.lead, *article.paragraphs, *article.captions):
+            for sentence in text.split_sentences(block):
+                tokens = text.tokenize(sentence)
+                for index in range(len(tokens) - 1):
+                    candidate, following = tokens[index].text, tokens[index + 1].text
+                    if following.lower() not in surnames:
+                        continue
+                    if not (text.is_name_token(following) and text.is_name_token(candidate)):
+                        continue
+                    first = candidate.lower()
+                    if len(first) < 3 or lexicon.is_generic(first) or first in ctx.geo:
+                        continue
+                    learned[first] += 1
+    ctx.extra_first_names = {name for name, hits in learned.items() if hits >= 2}
+    if ctx.extra_first_names:
+        log(f"  Vornamen gelernt: {len(ctx.extra_first_names)} "
+            f"(z. B. {', '.join(sorted(ctx.extra_first_names)[:5])})")
+    return ctx.extra_first_names
+
+
+def analyse(articles: list[parse.Article], log=print, wiki_refresh: bool = False,
+            holdout_ids: set[str] | None = None):
     texts = [_article_text(a) for a in articles]
     learned = gazetteer.learn(texts)
     ctx = ExtractionContext(geo=gazetteer.combine(learned),
                             common_nouns=gazetteer.learn_common_nouns(texts))
     log(f"  Gazetteer: {len(ctx.geo)} Ortsnamen (davon {len(learned)} aus dem Korpus gelernt)")
 
-    # Erster Durchlauf: Vornamen lernen, die im Korpus mehrfach vor Nachnamen
-    # stehen ("Marin Berlakovich" -> "Marin" ist ein Vorname).
-    first_pass = [extract_article(article, ctx) for article in articles]
-    learned: Counter = Counter()
-    for extraction in first_pass:
-        for person in extraction.persons:
-            parts = person.name.split()
-            if len(parts) < 2:
-                continue
-            first = parts[0].lower()
-            if len(first) < 3 or lexicon.is_generic(first) or first in ctx.geo:
-                continue
-            learned[first] += 1
-    ctx.extra_first_names = {name for name, hits in learned.items() if hits >= 2}
-    if ctx.extra_first_names:
-        log(f"  Vornamen gelernt: {len(ctx.extra_first_names)} "
-            f"(z. B. {', '.join(sorted(ctx.extra_first_names)[:5])})")
+    # Erster Durchlauf: bestätigte Nachnamen sammeln. Danach im gesamten Text
+    # nach "unbekanntes Wort + bekannter Nachname" suchen – das sind fast immer
+    # Vornamen ("Nikolaus Berlakovich", auch wenn "Nikolaus" in keiner Liste steht).
+    learn_first_names(articles, ctx, exclude=holdout_ids, log=log)
 
     extractions = [extract_article(article, ctx) for article in articles]
     with_persons = [ext for ext in extractions if ext.persons]
@@ -173,7 +199,7 @@ def write_outputs(extractions, persons, out_dir: Path = config.OUT_DIR, log=prin
 def run(pages: int = 15, sections: bool = True, limit: int | None = None,
         refresh: bool = False, wayback_urls: int = 0, wiki_refresh: bool = False,
         skip_wiki: bool = False, rebuild: bool = False, incremental: bool = False,
-        log=print) -> dict:
+        holdout: bool = False, log=print) -> dict:
     config.ensure_dirs()
     if rebuild:
         # Schneller Pfad: bereits geparste Artikel + zwischengespeicherte
@@ -211,12 +237,19 @@ def run(pages: int = 15, sections: bool = True, limit: int | None = None,
         articles = existing + new_articles
         if incremental:
             log(f"  Korpus: {len(articles)} Artikel ({len(new_articles)} neu)")
+    holdout_ids: set[str] = set()
+    if holdout:
+        gold_path = config.ROOT / "eval" / "gold.json"
+        if gold_path.exists():
+            holdout_ids = set(json.loads(gold_path.read_text(encoding="utf-8"))["articles"])
+            log(f"  Holdout: {len(holdout_ids)} Artikel nicht zum Lernen verwendet")
     if skip_wiki:
-        extractions, persons, _ = analyse(articles, log=log)
+        extractions, persons, _ = analyse(articles, log=log, holdout_ids=holdout_ids)
         wiki_data, wd_data = {}, {}
     else:
         extractions, persons, wiki_data, wd_data = analyse(articles, log=log,
-                                                           wiki_refresh=wiki_refresh)
+                                                           wiki_refresh=wiki_refresh,
+                                                           holdout_ids=holdout_ids)
     graph_data = write_outputs(extractions, persons, log=log, wiki_data=wiki_data,
                                wikidata_data=wd_data)
     if not rebuild:
