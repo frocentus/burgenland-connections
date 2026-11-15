@@ -7,6 +7,8 @@ Erkennungslogik anzufassen.
 
 from __future__ import annotations
 
+import re
+
 from dataclasses import dataclass
 
 
@@ -682,3 +684,62 @@ SENTIMENT_WEIGHT = {
     "positiv": +1.0,
     "kooperativ": +0.8,
 }
+
+#: Kurzformen und Spitznamen -> bürgerlicher Vorname. Der ORF schreibt "Grete",
+#: die Wikipedia und andere Artikel führen "Margarethe"; ohne diese Brücke
+#: entstehen zwei Personen und der Wikipedia-Artikel bleibt unauffindbar.
+NICKNAMES: dict[str, tuple[str, ...]] = {
+    "grete": ("margarethe", "margareta", "greta"),
+    "gretl": ("margarethe", "margareta"),
+    "didi": ("dietmar", "dieter"),
+    "sepp": ("josef",), "seppi": ("josef",), "pepi": ("josef",), "joschi": ("josef",),
+    "hans": ("johann", "johannes"),
+    "hansi": ("johann",),
+    "fritz": ("friedrich",), "franzl": ("franz",), "ferdl": ("ferdinand",),
+    "resi": ("therese",), "resl": ("therese",),
+    "lisi": ("elisabeth",), "sissi": ("elisabeth",), "lotte": ("charlotte",),
+    "gustl": ("august", "gustav"), "gusti": ("auguste", "gustava"),
+    "hanni": ("johanna", "hannelore"),
+    "toni": ("anton", "antonia"),
+    "niki": ("nikolaus",),
+    "michi": ("michael",),
+    "andi": ("andreas",),
+    "babsi": ("barbara",),
+    "vroni": ("veronika",),
+    "traudi": ("gertraud", "gertrude"), "trude": ("gertrud", "gertrude"),
+    "heini": ("heinrich",),
+    "wasti": ("sebastian",),
+    "loisl": ("alois",),
+    "xandi": ("alexander",),
+    "ossi": ("oskar", "oswald"),
+    "kari": ("karl",),
+    "susI": ("susanne",),
+    "inge": ("ingrid", "ingeborg"),
+    "evi": ("eva",),
+    "moni": ("monika",),
+    "dani": ("daniel", "daniela"),
+    "steffi": ("stefanie", "stephanie"),
+    "tom": ("thomas",),
+    "alex": ("alexander", "alexandra"),
+    "max": ("maximilian",),
+    "leo": ("leopold", "leonhard"),
+    "rudi": ("rudolf",),
+    "leni": ("helene", "magdalena"),
+    "bertl": ("albert", "berthold"),
+    "ferdi": ("ferdinand",),
+    "poldi": ("leopold",),
+    "viki": ("viktoria",),
+    "mizzi": ("maria",),
+    "hermi": ("hermine",),
+    "elfi": ("elfriede",),
+    "edi": ("eduard",),
+    "gerti": ("gertrude",),
+    "gabi": ("gabriele",),
+}
+
+
+def canonical_first_name(name: str) -> str:
+    """Vergleichsform des Vornamens: „Grete“ und „Margarethe“ werden gleich."""
+    first = re.split(r"[-\s]+", name.strip())[0].lower()
+    targets = NICKNAMES.get(first)
+    return (targets[0] if targets else first)

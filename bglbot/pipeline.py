@@ -5,7 +5,9 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from . import config, discover, gazetteer, graph as G, parse, preview, render, resolve, wayback, wiki, wikidata
+from collections import Counter
+
+from . import config, discover, gazetteer, graph as G, lexicon, parse, preview, render, resolve, wayback, wiki, wikidata
 from .extract import ExtractionContext, extract_article
 from .http import Fetcher, FetchError
 
@@ -98,6 +100,24 @@ def analyse(articles: list[parse.Article], log=print, wiki_refresh: bool = False
                             common_nouns=gazetteer.learn_common_nouns(texts))
     log(f"  Gazetteer: {len(ctx.geo)} Ortsnamen (davon {len(learned)} aus dem Korpus gelernt)")
 
+    # Erster Durchlauf: Vornamen lernen, die im Korpus mehrfach vor Nachnamen
+    # stehen ("Marin Berlakovich" -> "Marin" ist ein Vorname).
+    first_pass = [extract_article(article, ctx) for article in articles]
+    learned: Counter = Counter()
+    for extraction in first_pass:
+        for person in extraction.persons:
+            parts = person.name.split()
+            if len(parts) < 2:
+                continue
+            first = parts[0].lower()
+            if len(first) < 3 or lexicon.is_generic(first) or first in ctx.geo:
+                continue
+            learned[first] += 1
+    ctx.extra_first_names = {name for name, hits in learned.items() if hits >= 2}
+    if ctx.extra_first_names:
+        log(f"  Vornamen gelernt: {len(ctx.extra_first_names)} "
+            f"(z. B. {', '.join(sorted(ctx.extra_first_names)[:5])})")
+
     extractions = [extract_article(article, ctx) for article in articles]
     with_persons = [ext for ext in extractions if ext.persons]
     persons = resolve.resolve(with_persons)
@@ -152,7 +172,8 @@ def write_outputs(extractions, persons, out_dir: Path = config.OUT_DIR, log=prin
 
 def run(pages: int = 15, sections: bool = True, limit: int | None = None,
         refresh: bool = False, wayback_urls: int = 0, wiki_refresh: bool = False,
-        skip_wiki: bool = False, rebuild: bool = False, log=print) -> dict:
+        skip_wiki: bool = False, rebuild: bool = False, incremental: bool = False,
+        log=print) -> dict:
     config.ensure_dirs()
     if rebuild:
         # Schneller Pfad: bereits geparste Artikel + zwischengespeicherte
@@ -177,7 +198,19 @@ def run(pages: int = 15, sections: bool = True, limit: int | None = None,
     else:
         fetcher = Fetcher(refresh=refresh)
         urls = crawl(fetcher, pages, sections, wayback_urls=wayback_urls, log=log)
-        articles = load_articles(fetcher, urls, limit=limit, log=log)
+        existing: list[parse.Article] = []
+        if incremental and (config.OUT_DIR / "artikel.jsonl").exists():
+            existing = load_articles_from_jsonl(config.OUT_DIR / "artikel.jsonl", log=log)
+            known = {article.id for article in existing}
+            before = len(urls)
+            urls = [url for url in urls
+                    if parse.story_id_from_url(url) not in known]
+            log(f"  inkrementell: {len(known)} Artikel bekannt, {len(urls)} neu "
+                f"(von {before} URLs)")
+        new_articles = load_articles(fetcher, urls, limit=limit, log=log)
+        articles = existing + new_articles
+        if incremental:
+            log(f"  Korpus: {len(articles)} Artikel ({len(new_articles)} neu)")
     if skip_wiki:
         extractions, persons, _ = analyse(articles, log=log)
         wiki_data, wd_data = {}, {}

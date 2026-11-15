@@ -1,0 +1,11 @@
+{
+ "notes": "Manuell geprüfte Stichprobe (6 Artikel, 2019). Enthält bewusst auch einen Fall, den der Bot verfehlt (Silvio Samoni, unbekannter Vorname), damit Recall-Verluste sichtbar bleiben. Erweiterbar über scripts/annotate.py.",
+ "articles": {
+  "3001109": ["Patrik Fazekas", "Sebastian Steiner"],
+  "3002450": ["Wolfgang Unger", "Philipp Imrek", "Udo Wenders", "Silvio Samoni", "Thomas May"],
+  "3003464": ["Stefan Zwickl", "Martin Ganster"],
+  "3004466": ["Nicole Hefele-Holiczek", "Manfred Neumann", "Maria Bezenek-Salvamoser"],
+  "3005833": ["Heinrich Dorner", "Wolfgang Heckenast"],
+  "3006880": ["Stefan Jagschitz", "Richard Bedenik"]
+ }
+}

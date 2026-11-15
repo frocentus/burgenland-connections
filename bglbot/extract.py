@@ -205,6 +205,8 @@ class ExtractionContext:
     known: set[str] = field(default_factory=set)
     #: Wörter, die im Korpus klein vorkommen – also Substantive, keine Nachnamen.
     common_nouns: set[str] = field(default_factory=set)
+    #: Vornamen, die erst im zweiten Durchlauf aus dem Korpus gelernt wurden.
+    extra_first_names: set[str] = field(default_factory=set)
 
 
 # --------------------------------------------------------------------------
@@ -432,9 +434,9 @@ def _score_span(span: list[T.Token], sentence: str, tokens: list[T.Token],
         score += 4
         evidence.append("bekannt")
 
-    if words[0].lower() in lexicon.FIRST_NAMES:
+    if words[0].lower() in lexicon.FIRST_NAMES or words[0].lower() in ctx.extra_first_names:
         score += 2
-        evidence.append("vorname")
+        evidence.append("vorname" if words[0].lower() in lexicon.FIRST_NAMES else "vorname_gelernt")
 
     if len(words) >= 2:
         score += 1
@@ -471,9 +473,9 @@ def _accept(score: int, evidence: list[str], n_tokens: int, surface: str,
             "funktion_davor" in evidence or "bekannt" in evidence
         )
 
-    if "vorname" in evidence and score >= 3 + shift:
+    if ("vorname" in evidence or "vorname_gelernt" in evidence) and score >= 3 + shift:
         return True
-    if score >= MIN_MULTIWORD_SCORE + shift and (strong or "vorname" in evidence):
+    if score >= MIN_MULTIWORD_SCORE + shift and (strong or "vorname" in evidence or "vorname_gelernt" in evidence):
         return True
     return score >= 6 + shift
 

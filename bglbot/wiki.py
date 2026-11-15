@@ -52,57 +52,8 @@ FOREIGN_PARTIES = ("cdu", "csu", "spd", "sed", "afd", "fdp", "die linke", "bünd
 #: Kontextwörter, die einen Bezug zu Österreich/Burgenland belegen.
 AUSTRIAN_HINTS = ("österreich", "burgenland", "wien", "niederösterreich", "steiermark")
 
-#: Kurzformen und Spitznamen -> bürgerlicher Vorname. Der ORF schreibt "Grete",
-#: die Wikipedia führt "Margarethe"; ohne diese Brücke bleibt der Artikel
-#: unauffindbar.
-NICKNAMES: dict[str, tuple[str, ...]] = {
-    "grete": ("margarethe", "margareta", "greta"),
-    "gretl": ("margarethe", "margareta"),
-    "didi": ("dietmar", "dieter"),
-    "sepp": ("josef",), "seppi": ("josef",), "pepi": ("josef",), "joschi": ("josef",),
-    "hans": ("johann", "johannes"),
-    "hansi": ("johann",),
-    "fritz": ("friedrich",), "franzl": ("franz",), "ferdl": ("ferdinand",),
-    "resi": ("therese",), "resl": ("therese",),
-    "lisi": ("elisabeth",), "sissi": ("elisabeth",), "lotte": ("charlotte",),
-    "gustl": ("august", "gustav"), "gusti": ("auguste", "gustava"),
-    "hanni": ("johanna", "hannelore"),
-    "toni": ("anton", "antonia"),
-    "niki": ("nikolaus",),
-    "michi": ("michael",),
-    "andi": ("andreas",),
-    "babsi": ("barbara",),
-    "vroni": ("veronika",),
-    "traudi": ("gertraud", "gertrude"), "trude": ("gertrud", "gertrude"),
-    "heini": ("heinrich",),
-    "wasti": ("sebastian",),
-    "loisl": ("alois",),
-    "xandi": ("alexander",),
-    "ossi": ("oskar", "oswald"),
-    "kari": ("karl",),
-    "susI": ("susanne",),
-    "inge": ("ingrid", "ingeborg"),
-    "evi": ("eva",),
-    "moni": ("monika",),
-    "dani": ("daniel", "daniela"),
-    "steffi": ("stefanie", "stephanie"),
-    "tom": ("thomas",),
-    "alex": ("alexander", "alexandra"),
-    "max": ("maximilian",),
-    "leo": ("leopold", "leonhard"),
-    "rudi": ("rudolf",),
-    "leni": ("helene", "magdalena"),
-    "bertl": ("albert", "berthold"),
-    "ferdi": ("ferdinand",),
-    "poldi": ("leopold",),
-    "viki": ("viktoria",),
-    "mizzi": ("maria",),
-    "hermi": ("hermine",),
-    "elfi": ("elfriede",),
-    "edi": ("eduard",),
-    "gerti": ("gertrude",),
-    "gabi": ("gabriele",),
-}
+#: Kurzformen liegen zentral im Lexikon (auch für die Personen-Zusammenführung).
+from .lexicon import NICKNAMES
 
 
 def name_variants(name: str) -> list[str]:

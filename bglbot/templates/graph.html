@@ -148,8 +148,9 @@
     <div class="field">
       <label for="minArticles">Personen ab … Artikeln</label>
       <select id="minArticles">
+        <option value="solid" selected>belastbar (≥2 Artikel oder Funktion/Partei)</option>
         <option value="1">1 (alle)</option>
-        <option value="2" selected>2</option>
+        <option value="2">2</option>
         <option value="3">3</option>
         <option value="5">5</option>
         <option value="8">8</option>
@@ -220,7 +221,7 @@
 
   const state = {
     minWeight: 1,
-    minArticles: 2,
+    minArticles: "solid",
     showLabels: true,
     showIsolated: false,
     evidenceOnly: false,
@@ -689,7 +690,10 @@
     });
     nodes.forEach(n => {
       const active = yearsInRange(n.years, state.yearFrom, state.yearTo) > 0;
-      let vis = n.articles >= state.minArticles && partyOk(n) && active;
+      const solid = state.minArticles === "solid"
+        ? (n.articles >= 2 || !!n.role || !!n.party || (n.tone && n.tone.critical >= 2))
+        : n.articles >= Number(state.minArticles);
+      let vis = solid && partyOk(n) && active;
       const toneLabel = (n.tone && n.tone.label) || "";
       if (state.toneFilter === "critical") vis = vis && toneLabel.indexOf("kritisch") >= 0;
       if (state.toneFilter === "positive") vis = vis && toneLabel.indexOf("zustimmend") >= 0;
@@ -997,7 +1001,7 @@
     applyFilters();
   });
   document.getElementById("minArticles").addEventListener("change", e => {
-    state.minArticles = +e.target.value; applyFilters();
+    state.minArticles = e.target.value; applyFilters();
   });
   document.getElementById("labels").addEventListener("change", e => {
     state.showLabels = e.target.checked; draw();

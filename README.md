@@ -118,10 +118,14 @@ Index und HTTP-Cache läuft derselbe Aufbau danach in wenigen Sekunden
 ## Ergebnis des Referenzlaufs
 
 ```
-1298 Artikel · 1292 Personen · 3789 Beziehungen · 4924 Nennungen
-Zeitraum 2019-06-03 – 2026-11-14 · 990 Artikel mit Personennennungen
-davon 60 Beziehungen mit erkennbarem Beziehungston · 405 mit Wikipedia-Artikel · 404 mit Wikidata-Daten
+1298 Artikel · 1323 Personen · 4029 Beziehungen · 5079 Nennungen
+Zeitraum 2019-06-03 – 2026-11-14 · 1004 Artikel mit Personennennungen
+davon 60 Beziehungen mit erkennbarem Beziehungston · 409 mit Wikipedia-Artikel
+408 mit Wikidata-Daten · 956 Beziehungen mit gemeinsamem Satz
 ```
+
+Güte auf der geprüften Stichprobe (`python -m bglbot.evaluate`):
+**Precision 1,000 · Recall 0,938 · F1 0,968** (6 Artikel, 16 Personen).
 
 Spitzenreiter: Hans Peter Doskozil (73 Artikel, 138 Beziehungen),
 Anja Haider-Wallner (28), Heinrich Dorner (25), Leonhard Schneemann (25),
@@ -314,6 +318,39 @@ Satz im Fließtext zählt voll, eine Aufzählung oder Bildzeile mit einem Vierte
 ein benachbarter Satz mit 15 %. Nur 908 der 3.789 Kanten haben überhaupt einen
 gemeinsamen Satz – der Schalter *Nur Beziehungen mit gemeinsamem Satz* blendet
 den Rest aus und macht das belastbare Netz sichtbar.
+
+## Konfidenz, Kurzformen und gelernte Vornamen
+
+**Konfidenz statt Vollständigkeit:** Die Startansicht zeigt nur *belastbare*
+Personen – mindestens zwei Artikel oder eine belegte Funktion/Partei. Alle
+anderen bleiben im Datensatz und sind über den Filter „1 (alle)“ erreichbar.
+Von 1.323 Personen sind das 979 Einmal-Nennungen, die sonst das Bild füllen.
+
+**Kurzformen:** `lexicon.NICKNAMES` bildet „Grete“→Margarethe, „Didi“→Dietmar,
+„Hans“→Johann und rund 50 weitere ab – sowohl für die Wikipedia-Suche als auch
+für die Zusammenführung zweier Nennungen im Korpus.
+
+**Gelernte Vornamen:** Ein zweiter Extraktionsdurchlauf lernt Vornamen aus dem
+eigenen Korpus (Wörter, die dort ≥2× vor einem Nachnamen stehen) und erkennt
+damit Namen, die in keiner Liste stehen. Im Referenzlauf 187 zusätzliche
+Vornamen, +31 Personen.
+
+**Inkrementeller Lauf:** `python run.py --incremental` lädt nur Artikel, deren
+Story-ID noch nicht im Korpus ist, und hängt sie an. Tägliche Aktualisierung in
+Sekunden statt Minuten.
+
+## Evaluation
+
+`eval/gold.json` enthält eine manuell geprüfte Stichprobe (Story-ID → Namen).
+`python -m bglbot.evaluate` vergleicht Extraktion und Goldstandard und meldet
+Precision, Recall und F1 je Artikel. `python scripts/annotate.py --count 12`
+erzeugt eine statische Annotationsseite (`eval/annotate.html`), in der man
+Personen anklickt, fehlende Namen ergänzt und den Goldstandard als JSON
+exportiert – ohne Server, ohne Datenversand.
+
+Der einzige verfehlte Fall im aktuellen Sample ist bezeichnend: „Silvio Samoni“
+wird nicht erkannt, weil „Silvio“ in keiner Vornamenliste steht und der Satz
+(„Stargast ist Silvio Samoni“) keine Funktionsbezeichnung enthält.
 
 ## Fehlende Artikel ergänzen
 

@@ -151,9 +151,13 @@ def _merge_subset_groups(full_groups: dict[tuple[str, str], list[Entry]]) -> Non
 
 
 def _key_of(person: PersonInArticle) -> tuple[str, str]:
+    """Schlüssel für die Zusammenführung – Kurzformen normalisiert.
+
+    „Grete Krojer“ und „Margarethe Krojer“ landen damit im selben Topf.
+    """
     parts = person.name.split()
     if len(parts) >= 2:
-        return parts[0].lower(), parts[-1].lower()
+        return lexicon.canonical_first_name(parts[0]), parts[-1].lower()
     return "", person.surname.lower()
 
 
