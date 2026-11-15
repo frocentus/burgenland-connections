@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Generierte Daten (nicht ins Repository: ORF-Volltexte und Caches)
+data/cache/
+data/out/
+data/wiki.json
+data/wayback-*.json
+
+# Nutzer-Listen bleiben versioniert
+!data/extra_urls.txt
+
+# Betriebssystem / Editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
