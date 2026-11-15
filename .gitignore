@@ -9,6 +9,7 @@ data/cache/
 data/out/
 data/wiki.json
 data/wayback-*.json
+data/site/
 
 # Nutzer-Listen bleiben versioniert
 !data/extra_urls.txt

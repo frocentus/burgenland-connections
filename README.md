@@ -20,13 +20,20 @@ Die jeweils aktuelle Grafik wird über GitHub Pages veröffentlicht:
 
 **https://frocentus.github.io/burgenland-connections/**
 
-Ein GitHub-Actions-Workflow (`.github/workflows/pages.yml`) prüft bei jedem
-Push die Tests, crawlt anschließend und lädt `graph.html` als `index.html`
-hoch. Der CI-Lauf crawlt bewusst schlanker als ein lokaler Lauf
-(`--pages 30 --wayback 600`, rund 730 Artikel, Laufzeit ~30 min); lokal sind
-mit `--wayback 1200` rund 1.300 Artikel möglich. Zusätzlich läuft er **täglich um 05:00 UTC** und lässt sich manuell über
-*Actions → CI und GitHub Pages → Run workflow* starten. HTTP- und
-Wikipedia-Antworten werden zwischen den Läufen gecacht.
+**Das Crawling läuft ausschließlich lokal** – dort ohne Zeitlimit und im vollen
+Umfang (`--wayback 1200`, ~1.300 Artikel). GitHub Actions crawlt nicht, sondern
+veröffentlicht nur:
+
+```bash
+python run.py --pages 45 --wayback 1200    # vollständiger lokaler Lauf
+python publish.py                          # hochladen + veröffentlichen
+```
+
+`publish.py` packt die Ausgabedateien zu `site.zip`, lädt sie als Asset des
+rollierenden Releases **`data`** hoch und stößt den Workflow an. Dieser prüft
+die Tests, holt `site.zip` aus dem Release und deployt es nach Pages – Laufzeit
+unter einer Minute. Das Repository bleibt so frei von generierten Daten, und die
+Seite zeigt trotzdem den vollständigen lokalen Stand.
 
 ## Schnellstart
 

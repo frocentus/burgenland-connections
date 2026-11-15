@@ -1,5 +1,9 @@
 name: CI und GitHub Pages
 
+# Crawling passiert bewusst NICHT hier, sondern lokal (voller Umfang).
+# Dieser Workflow prüft den Code und veröffentlicht das zuletzt lokal
+# erzeugte Ergebnis aus dem Release "data".
+
 on:
   push:
     branches: [main]
@@ -7,9 +11,6 @@ on:
       - "**.md"
       - "LICENSE"
       - ".gitignore"
-  schedule:
-    # Täglich 05:00 UTC – hält die veröffentlichte Grafik aktuell
-    - cron: "0 5 * * *"
   workflow_dispatch:
 
 permissions:
@@ -35,62 +36,40 @@ jobs:
       - name: Unit-Tests
         run: python -m unittest discover -s tests -v
       - name: Syntaxprüfung
-        run: python -m compileall -q bglbot run.py
+        run: python -m compileall -q bglbot run.py publish.py
 
-  build:
-    name: Scrape und Seite bauen
+  deploy:
+    name: Veröffentlichen
     needs: test
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Abhängigkeiten
-        run: python -m pip install --upgrade pip -r requirements.txt
-
-      # HTTP-Cache: macht Folgeläufe deutlich schneller und schont den ORF
-      - name: Cache der abgerufenen Seiten
-        uses: actions/cache@v4
-        with:
-          path: data/cache
-          key: bgl-cache-${{ github.run_id }}
-          restore-keys: bgl-cache-
-
-      # Wikipedia-Antworten: einmal geholt, danach nur Ergänzungen
-      - name: Cache der Wikipedia-Zusammenfassungen
-        uses: actions/cache@v4
-        with:
-          path: data/wiki.json
-          key: bgl-wiki-${{ github.run_id }}
-          restore-keys: bgl-wiki-
-
-      - name: Crawlen und auswerten
+      - name: Datenstand aus dem Release laden
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          python run.py --pages 30 --wayback 600
-
-      - name: Seitengrundlage prüfen
-        run: |
-          test -s data/out/graph.html || (echo "graph.html fehlt" && exit 1)
-          mkdir -p site
-          cp data/out/graph.html site/index.html
-          cp data/out/graph.json site/graph.json 2>/dev/null || true
-          cp data/out/personen.csv site/ 2>/dev/null || true
-          cp data/out/beziehungen.csv site/ 2>/dev/null || true
-          cp data/out/netzwerk.png site/ 2>/dev/null || true
+          if ! gh release download data --pattern site.zip --dir . --clobber; then
+            echo "::error::Kein Release 'data' mit site.zip gefunden."
+            echo "Lokal ausführen: python run.py && python publish.py"
+            exit 1
+          fi
+          unzip -o site.zip -d site
+          test -s site/index.html || (echo "index.html fehlt im Archiv" && exit 1)
           ls -la site
 
-      - name: Statistik ausgeben
+      - name: Seiteninhalt prüfen
         run: |
           python - <<'PY'
-          import json
-          meta = json.load(open("data/out/graph.json", encoding="utf-8"))["meta"]
-          print(f"Artikel: {meta['articles_crawled']}, Personen: {meta['persons']}, "
-                f"Beziehungen: {meta['edges']}, Wikipedia: "
-                f"{sum(1 for n in json.load(open('data/out/graph.json', encoding='utf-8'))['nodes'] if n.get('wikipedia'))}")
+          import json, pathlib
+          data = json.loads(pathlib.Path("site/graph.json").read_text(encoding="utf-8"))
+          meta = data["meta"]
+          wiki = sum(1 for n in data["nodes"] if n.get("wikipedia"))
+          print(f"Artikel: {meta['articles_crawled']} | Personen: {meta['persons']} | "
+                f"Beziehungen: {meta['edges']} | Wikipedia: {wiki} | Stand: {meta['generated']}")
           PY
 
       - name: Pages-Artefakt
@@ -98,14 +77,6 @@ jobs:
         with:
           path: site
 
-  deploy:
-    name: Veröffentlichen
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
       - name: Auf GitHub Pages deployen
         id: deployment
         uses: actions/deploy-pages@v4
