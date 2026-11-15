@@ -176,6 +176,9 @@ class ArticleExtraction:
     mentions: list[Mention]
     window_pairs: list[tuple[str, str]] = field(default_factory=list)
     rejected: list[dict] = field(default_factory=list)
+    #: Textbaustein je Satz (titel|lead|body|caption) – für die Unterscheidung
+    #: zwischen Fließtext und Aufzählungen.
+    units: list[str] = field(default_factory=list)
     #: Einzelnennungen ohne Personenzuordnung („… sagte Doskozil“), die erst
     #: korpusweit über den Nachnamen aufgelöst werden können.
     loose: list[Mention] = field(default_factory=list)
@@ -571,6 +574,7 @@ def extract_article(article: Article, ctx: ExtractionContext,
         window_pairs=window_pairs,
         rejected=rejected,
         loose=unlinked,
+        units=sentence_units,
     )
 
 

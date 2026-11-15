@@ -113,6 +113,15 @@
     </div>
 
     <div class="field">
+      <label>Zeitraum: <b id="yearLabel">–</b></label>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="range" id="yearFrom" min="2019" max="2026" step="1" value="2019">
+        <input type="range" id="yearTo" min="2019" max="2026" step="1" value="2026">
+      </div>
+      <div class="hint">von / bis – filtert Personen und Beziehungen nach Jahr</div>
+    </div>
+
+    <div class="field">
       <label for="weight">Mindestzahl gemeinsamer Artikel: <b id="weightVal">1</b></label>
       <input type="range" id="weight" min="1" max="3" value="1" step="1">
     </div>
@@ -150,6 +159,7 @@
     <div class="field">
       <label class="toggle"><input type="checkbox" id="labels" checked> Namen einblenden</label>
       <label class="toggle" style="margin-top:7px"><input type="checkbox" id="isolated"> Auch Personen ohne Beziehung</label>
+      <label class="toggle" style="margin-top:7px"><input type="checkbox" id="evidenceOnly"> Nur Beziehungen mit gemeinsamem Satz</label>
     </div>
 
     <div class="field">
@@ -213,6 +223,7 @@
     minArticles: 2,
     showLabels: true,
     showIsolated: false,
+    evidenceOnly: false,
     parties: new Set(DATA.parties),
     query: "",
     selected: null,
@@ -220,7 +231,9 @@
     hoverEdge: null,
     matches: null,         // Set von IDs, wenn eine Suche aktiv ist
     sentiFilter: "all",
-    toneFilter: "all"
+    toneFilter: "all",
+    yearFrom: 2019,
+    yearTo: 2026
   };
 
   // ---------- Layout (Kraftsimulation) ----------
@@ -346,11 +359,14 @@
       const sentiLabel = (e.sentiment && e.sentiment.label) || "neutral";
       const rgb = SENTI_RGB[sentiLabel] || SENTI_RGB.neutral;
       const strong = sentiLabel !== "neutral";
-      let alpha = hov ? 0.95 : on ? 0.8 : (strong ? 0.55 : 0.2) * dim;
+      const alphaBase = strong ? 0.55 : Math.min(0.55, 0.12 + ((e.strength ?? 0) * 0.08));
+      let alpha = hov ? 0.95 : on ? 0.8 : alphaBase * dim;
       if (matches && !(matches.has(e.source) && matches.has(e.target))) alpha *= 0.25;
       ctx.strokeStyle = hov ? "#ffffff" : on ? "#8fc7ff" : "rgba(" + rgb + "," + alpha.toFixed(2) + ")";
-      ctx.lineWidth = hov ? 2.6 : on ? Math.min(5, 0.8 + e.weight * 0.6)
-                                    : Math.max(0.6, Math.min(2.6, 0.4 + e.weight * 0.3));
+      const strength = (e.strength ?? 0) || 0;
+      const visual = strength * 0.3 + Math.min(6, e.weight) * 0.08;
+      ctx.lineWidth = hov ? 2.6 : on ? Math.min(5, 0.7 + visual * 1.4)
+                                    : Math.max(0.5, Math.min(2.6, 0.35 + visual));
       ctx.stroke();
     });
 
@@ -454,7 +470,7 @@
       const e2 = state.hoverEdge;
       const a = nodeIndex.get(e2.source), b = nodeIndex.get(e2.target);
       const sl = (e2.sentiment && e2.sentiment.label) || "neutral";
-      showTooltip(p, `<b>${esc(a.name)} ↔ ${esc(b.name)}</b><br><span style="color:rgb(${SENTI_RGB[sl]})">${esc(SENTI_LABEL[sl] || sl)}</span><br><span style="color:#8b98a5">${e2.weight} gemeinsame Artikel · ${e2.sentences} gemeinsame Sätze</span>`);
+      showTooltip(p, `<b>${esc(a.name)} ↔ ${esc(b.name)}</b><br><span style="color:rgb(${SENTI_RGB[sl]})">${esc(SENTI_LABEL[sl] || sl)}</span><br><span style="color:#8b98a5">Stärke ${e2.strength ?? "–"} · ${e2.weight} gemeinsame Artikel · ${e2.sentences} gemeinsame Sätze</span>`);
     } else {
       hideTooltip();
     }
@@ -539,6 +555,11 @@
            ${n.conflict_edges ? `<span class="badge" style="border-color:rgb(255,120,90);color:rgb(255,150,120)">${n.conflict_edges} konfliktäre Kanten</span>` : ""}
            ${n.positive_edges ? `<span class="badge" style="border-color:rgb(86,214,140);color:rgb(86,214,140)">${n.positive_edges} freundschaftliche</span>` : ""}</div>
       ${roles ? `<h3>Weitere erkannte Funktionen</h3><div>${roles}</div>` : ""}
+      ${n.wikidata && n.wikidata.offices && n.wikidata.offices.length ? `
+        <h3>Ämter (Wikidata)</h3>
+        <div class="hint">${n.wikidata.offices.slice(0, 6).map(o => esc(o.label) + (o.start || o.end ? ` (${esc(o.start || "?")}–${esc(o.end || "heute")})` : "")).join("<br>")}</div>
+        ${n.wikidata.birth ? `<div class="hint" style="margin-top:4px">geboren ${esc(n.wikidata.birth)}</div>` : ""}
+      ` : ""}
       ${n.wikipedia ? `
         <h3>Wikipedia</h3>
         ${n.wikipedia.description ? `<div class="sub" style="margin:-4px 0 8px">${esc(n.wikipedia.description)}</div>` : ""}
@@ -595,7 +616,8 @@
     }).join("");
     detail.innerHTML = `
       <h2>${esc(a.name)} ↔ ${esc(b.name)}</h2>
-      <div class="sub">${e.weight} gemeinsame Artikel · ${e.sentences} gemeinsame Sätze · ${e.windows} benachbarte Sätze</div>
+      <div class="sub">Stärke ${e.strength ?? "–"} · ${e.weight} gemeinsame Artikel · ${e.sentences} gemeinsame Sätze (${e.body_sentences ?? "–"} im Fließtext, ${e.list_sentences ?? "–"} in Aufzählungen)</div>
+      ${e.years && Object.keys(e.years).length ? `<div class="hint">Jahre: ${Object.entries(e.years).map(([y, c]) => y + " (" + c + ")").join(" · ")}</div>` : ""}
       <h3>Beziehungston</h3>
       <div><span class="badge" style="border-color:${sentiColor};color:${sentiColor}">${esc(SENTI_LABEL[senti.label] || senti.label)}</span>
         <span class="badge">${senti.positive.toFixed(1)} positiv</span>
@@ -634,6 +656,16 @@
   }
 
   // ---------- Filter & Listen ----------
+  function yearsInRange(map, from, to){
+    if (!map) return 0;
+    let total = 0;
+    for (const [year, count] of Object.entries(map)){
+      const y = Number(year);
+      if (y >= from && y <= to) total += count;
+    }
+    return total;
+  }
+
   function sentiLabelOf(e){
     return (e.sentiment && e.sentiment.label) || "neutral";
   }
@@ -651,17 +683,24 @@
     const partyOk = n => n.party ? state.parties.has(n.party) : state.parties.has("__none__");
     const linked = new Set();
     edges.forEach(e => {
-      if (e.weight >= state.minWeight && sentiOk(e)){ linked.add(e.source); linked.add(e.target); }
+      const inYears = yearsInRange(e.years, state.yearFrom, state.yearTo);
+      const evidenced = !state.evidenceOnly || (e.sentences || 0) > 0;
+      if (inYears >= state.minWeight && sentiOk(e) && evidenced){ linked.add(e.source); linked.add(e.target); }
     });
     nodes.forEach(n => {
-      let vis = n.articles >= state.minArticles && partyOk(n);
+      const active = yearsInRange(n.years, state.yearFrom, state.yearTo) > 0;
+      let vis = n.articles >= state.minArticles && partyOk(n) && active;
       const toneLabel = (n.tone && n.tone.label) || "";
       if (state.toneFilter === "critical") vis = vis && toneLabel.indexOf("kritisch") >= 0;
       if (state.toneFilter === "positive") vis = vis && toneLabel.indexOf("zustimmend") >= 0;
       if (!state.showIsolated) vis = vis && linked.has(n.id);
       n.visible = n.forced ? true : vis;     // Suchtreffer bleiben sichtbar
     });
-    edges.forEach(e => { e.visible = e.weight >= state.minWeight && sentiOk(e); });
+    edges.forEach(e => {
+      const evidenced = !state.evidenceOnly || (e.sentences || 0) > 0;
+      e.visible = yearsInRange(e.years, state.yearFrom, state.yearTo) >= state.minWeight
+                  && sentiOk(e) && evidenced;
+    });
     renderList();
     draw();
   }
@@ -915,6 +954,40 @@
     document.getElementById("weightVal").textContent = state.minWeight;
     applyFilters();
   });
+  function updateYearLabel(){
+    document.getElementById("yearLabel").textContent = `${state.yearFrom}–${state.yearTo}`;
+  }
+
+  function initYearRange(){
+    const years = new Set();
+    nodes.forEach(n => Object.keys(n.years || {}).forEach(y => years.add(Number(y))));
+    edges.forEach(e => Object.keys(e.years || {}).forEach(y => years.add(Number(y))));
+    if (!years.size) return;
+    const min = Math.min(...years), max = Math.max(...years);
+    const from = document.getElementById("yearFrom");
+    const to = document.getElementById("yearTo");
+    from.min = to.min = String(min);
+    from.max = to.max = String(max);
+    from.value = String(min);
+    to.value = String(max);
+    state.yearFrom = min;
+    state.yearTo = max;
+    updateYearLabel();
+  }
+
+  document.getElementById("yearFrom").addEventListener("input", e => {
+    state.yearFrom = Math.min(Number(e.target.value), state.yearTo);
+    e.target.value = String(state.yearFrom);
+    updateYearLabel();
+    applyFilters();
+  });
+  document.getElementById("yearTo").addEventListener("input", e => {
+    state.yearTo = Math.max(Number(e.target.value), state.yearFrom);
+    e.target.value = String(state.yearTo);
+    updateYearLabel();
+    applyFilters();
+  });
+
   document.getElementById("sentiFilter").addEventListener("change", e => {
     state.sentiFilter = e.target.value;
     applyFilters();
@@ -928,6 +1001,10 @@
   });
   document.getElementById("labels").addEventListener("change", e => {
     state.showLabels = e.target.checked; draw();
+  });
+  document.getElementById("evidenceOnly").addEventListener("change", e => {
+    state.evidenceOnly = e.target.checked;
+    applyFilters();
   });
   document.getElementById("isolated").addEventListener("change", e => {
     state.showIsolated = e.target.checked; applyFilters();
@@ -970,6 +1047,7 @@
   const slider = document.getElementById("weight");
   slider.max = Math.min(8, maxWeight);
   renderStats();
+  initYearRange();
   renderPartyChips();
   renderLegend();
   fitView();

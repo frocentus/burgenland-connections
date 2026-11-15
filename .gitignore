@@ -8,6 +8,7 @@ venv/
 data/cache/
 data/out/
 data/wiki.json
+data/wikidata.json
 data/wayback-*.json
 data/site/
 

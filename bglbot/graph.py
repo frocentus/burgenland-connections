@@ -14,6 +14,7 @@ from xml.sax.saxutils import escape
 from . import lexicon
 from .extract import ArticleExtraction, _build_window_pairs
 from .resolve import Person
+from .wikidata import party_code
 
 
 @dataclass
@@ -30,10 +31,23 @@ class Edge:
     hostile: int = 0
     sentiment_sentences: int = 0
     direction: Counter = field(default_factory=Counter)
+    body_sentences: int = 0
+    list_sentences: int = 0
+    years: Counter = field(default_factory=Counter)
 
     @property
     def weight(self) -> int:
         return len(self.articles)
+
+    @property
+    def strength(self) -> float:
+        """Beziehungsstärke: gemeinsame Fließtext-Sätze zählen am meisten.
+
+        Nennungen in Aufzählungen und Bildzeilen sind schwächere Belege als
+        ein Satz, in dem beide wirklich zusammen auftreten.
+        """
+        return round(self.body_sentences * 1.0 + self.list_sentences * 0.25
+                     + self.windows * 0.15, 2)
 
     @property
     def dominant_signal(self) -> str | None:
@@ -245,7 +259,8 @@ def edge_list_sentiment(edge_list: list[dict]) -> list[str]:
 
 
 def build_graph(extractions: list[ArticleExtraction], persons: list[Person],
-                wiki: dict[str, dict] | None = None) -> dict:
+                wiki: dict[str, dict] | None = None,
+                wikidata: dict[str, dict] | None = None) -> dict:
     by_id = {p.id: p for p in persons}
     edges: dict[tuple[str, str], Edge] = {}
     articles_meta: dict[str, dict] = {}
@@ -273,10 +288,13 @@ def build_graph(extractions: list[ArticleExtraction], persons: list[Person],
             if meta not in person_articles[pid]:
                 person_articles[pid].append(meta)
 
+        year = (ext.article.date or "")[:4]
         for i, a in enumerate(pids):
             for b in pids[i + 1:]:
                 edges_key = edge(a, b)
                 edges_key.articles.add(ext.article.id)
+                if year.isdigit():
+                    edges_key.years[year] += 1
 
         for a, b in ext.sentence_pairs:
             e = edge(a, b)
@@ -341,9 +359,18 @@ def build_graph(extractions: list[ArticleExtraction], persons: list[Person],
             for mention in mentions:
                 positions.setdefault(mention.person_key, mention.start)
             direction = _direction_of(sentence, positions) if sentiment else None
+            # Aufzählung oder Bildzeile? Dort ist die gemeinsame Nennung
+            # schwächer zu werten als im Fließtext.
+            unit = ext.units[idx] if idx < len(ext.units) else "body"
+            listing = (unit == "caption" or len(present) >= 4
+                       or (sentence.count(",") >= 4 and len(present) >= 3))
             for i, a in enumerate(present):
                 for b in present[i + 1:]:
                     e = edge(a, b)
+                    if listing:
+                        e.list_sentences += 1
+                    else:
+                        e.body_sentences += 1
                     for sig in signals:
                         e.signals[sig] += 1
                     if sentiment:
@@ -453,6 +480,16 @@ def build_graph(extractions: list[ArticleExtraction], persons: list[Person],
         top = sorted(neighbours, key=lambda e: (-e.weight, -e.sentences))[:5]
         data = person.to_dict()
         data["wikipedia"] = (wiki or {}).get(person.name) or None
+        wd = (wikidata or {}).get(person.name) or None
+        data["wikidata"] = wd
+        if wd and not data.get("party"):
+            data["party"] = party_code(wd.get("party"))
+        years: Counter = Counter()
+        for article_id in person.articles:
+            date = (articles_meta.get(article_id) or {}).get("date") or ""
+            if date[:4].isdigit():
+                years[date[:4]] += 1
+        data["years"] = dict(sorted(years.items()))
         entry = tone.get(pid) or {"positive": 0.0, "negative": 0.0, "critical": 0,
                                   "praising": 0, "parties": Counter(), "examples": []}
         total = entry["positive"] + entry["negative"]
@@ -492,6 +529,10 @@ def build_graph(extractions: list[ArticleExtraction], persons: list[Person],
             "weight": e.weight,
             "sentences": e.sentences,
             "windows": e.windows,
+            "strength": e.strength,
+            "body_sentences": e.body_sentences,
+            "list_sentences": e.list_sentences,
+            "years": dict(sorted(e.years.items())),
             "signals": dict(e.signals),
             "dominant_signal": e.dominant_signal,
             "sentiment": {
@@ -507,7 +548,7 @@ def build_graph(extractions: list[ArticleExtraction], persons: list[Person],
             "articles": sorted(e.articles)[:24],
             "examples": e.examples[:2],
         })
-    edge_list.sort(key=lambda x: (-x["weight"], -x["sentences"]))
+    edge_list.sort(key=lambda x: (-x["strength"], -x["weight"], -x["sentences"]))
 
     dates = sorted(m["date"] for m in articles_meta.values() if m.get("date"))
     meta = {

@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from . import config, discover, gazetteer, graph as G, parse, preview, render, resolve, wayback, wiki
+from . import config, discover, gazetteer, graph as G, parse, preview, render, resolve, wayback, wiki, wikidata
 from .extract import ExtractionContext, extract_article
 from .http import Fetcher, FetchError
 
@@ -108,13 +108,18 @@ def analyse(articles: list[parse.Article], log=print, wiki_refresh: bool = False
     wiki_data = client.enrich(persons, log=log)
     with_wiki = sum(1 for person in persons if wiki_data.get(person.name))
     log(f"  Wikipedia: {with_wiki} Personen mit Artikel")
-    return extractions, persons, wiki_data
+
+    wd_client = wikidata.WikidataClient(log=log)
+    wd_data = wd_client.enrich({name: entry for name, entry in wiki_data.items() if entry}, log=log)
+    with_wd = sum(1 for person in persons if wd_data.get(person.name))
+    log(f"  Wikidata: {with_wd} Personen mit Partei/Ämtern")
+    return extractions, persons, wiki_data, wd_data
 
 
 def write_outputs(extractions, persons, out_dir: Path = config.OUT_DIR, log=print,
-                  wiki_data: dict | None = None) -> dict:
+                  wiki_data: dict | None = None, wikidata_data: dict | None = None) -> dict:
     out_dir.mkdir(parents=True, exist_ok=True)
-    graph_data = G.build_graph(extractions, persons, wiki=wiki_data)
+    graph_data = G.build_graph(extractions, persons, wiki=wiki_data, wikidata=wikidata_data)
     G.write_json(graph_data, out_dir / "graph.json")
     G.write_csv(graph_data, out_dir / "personen.csv", out_dir / "beziehungen.csv")
     G.write_graphml(graph_data, out_dir / "graph.graphml")
@@ -175,10 +180,12 @@ def run(pages: int = 15, sections: bool = True, limit: int | None = None,
         articles = load_articles(fetcher, urls, limit=limit, log=log)
     if skip_wiki:
         extractions, persons, _ = analyse(articles, log=log)
-        wiki_data = {}
+        wiki_data, wd_data = {}, {}
     else:
-        extractions, persons, wiki_data = analyse(articles, log=log, wiki_refresh=wiki_refresh)
-    graph_data = write_outputs(extractions, persons, log=log, wiki_data=wiki_data)
+        extractions, persons, wiki_data, wd_data = analyse(articles, log=log,
+                                                           wiki_refresh=wiki_refresh)
+    graph_data = write_outputs(extractions, persons, log=log, wiki_data=wiki_data,
+                               wikidata_data=wd_data)
     if not rebuild:
         graph_data["fetch_stats"] = fetcher.stats
     return graph_data

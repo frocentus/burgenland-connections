@@ -120,7 +120,7 @@ Index und HTTP-Cache läuft derselbe Aufbau danach in wenigen Sekunden
 ```
 1298 Artikel · 1292 Personen · 3789 Beziehungen · 4924 Nennungen
 Zeitraum 2019-06-03 – 2026-11-14 · 990 Artikel mit Personennennungen
-davon 60 Beziehungen mit erkennbarem Beziehungston · 405 mit Wikipedia-Artikel
+davon 60 Beziehungen mit erkennbarem Beziehungston · 405 mit Wikipedia-Artikel · 404 mit Wikidata-Daten
 ```
 
 Spitzenreiter: Hans Peter Doskozil (73 Artikel, 138 Beziehungen),
@@ -294,6 +294,26 @@ werden Artikel mit **deutschen Parteikürzeln** und ohne jeden
 
 Schneller Rebuild ohne Crawling: `python run.py --rebuild` nutzt
 `data/out/artikel.jsonl` und den Wikipedia-Cache (rund 20 s statt 15 min).
+
+## Wikidata, Zeitdimension und Beziehungsstärke
+
+**Wikidata** ergänzt die Prosa aus Wikipedia um Struktur: Partei (P102), Ämter
+(P39 inklusive Amtszeiten) und Geburtsdatum (P569). Das läuft gebündelt über
+`wbgetentities` und eine SPARQL-Abfrage je 120 Personen – rund zehn Anfragen für
+alle 404 Personen. Ergebnisse liegen in `data/wikidata.json`. Nutzen: die
+Parteifarbe steigt von 118 auf 185 Personen, und im Detailpanel stehen
+Amtszeiten („Landeshauptmann (2019–heute)“).
+
+**Zeitdimension:** Jede Kante und jede Person führt mit, in welchen Jahren sie
+auftritt. Der Zeitregler filtert beides; damit lässt sich das Netzwerk für
+2019–2021 mit 2024–2026 vergleichen – sichtbar wird etwa der Wechsel im Amt der
+Landeshauptmann-Stellvertretung von Astrid Eisenkopf zu Anja Haider-Wallner.
+
+**Beziehungsstärke:** Nicht jede gemeinsame Nennung wiegt gleich. Ein gemeinsamer
+Satz im Fließtext zählt voll, eine Aufzählung oder Bildzeile mit einem Viertel,
+ein benachbarter Satz mit 15 %. Nur 908 der 3.789 Kanten haben überhaupt einen
+gemeinsamen Satz – der Schalter *Nur Beziehungen mit gemeinsamem Satz* blendet
+den Rest aus und macht das belastbare Netz sichtbar.
 
 ## Fehlende Artikel ergänzen
 
