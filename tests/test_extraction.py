@@ -206,7 +206,9 @@ class SentimentTest(unittest.TestCase):
             "Landeshauptmann Hans Peter Doskozil und Bürgermeister Gerhard Bachmann "
             "nahmen an der Feier teil."
         )
-        self.assertEqual(edge["sentiment"]["label"], "neutral")
+        # Neutrale Kanten tragen kein Sentiment-Objekt (spart ~900 KB Seitengröße);
+        # fehlend bedeutet neutral.
+        self.assertEqual(edge.get("sentiment", {}).get("label", "neutral"), "neutral")
 
 
 class RoleNormalisationTest(unittest.TestCase):

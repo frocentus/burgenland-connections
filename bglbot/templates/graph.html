@@ -297,6 +297,11 @@
           }
         }
         fx -= a.x * 0.012 * alpha; fy -= a.y * 0.012 * alpha;
+        // Begrenzen: Bei vielen Nachbarn summieren sich die Kräfte sonst zu
+        // Werten, die das Layout auseinandertreiben (Positionen bis 1e12).
+        const FMAX = 80;
+        fx = Math.max(-FMAX, Math.min(FMAX, fx));
+        fy = Math.max(-FMAX, Math.min(FMAX, fy));
         a.vx = (a.vx + fx) * 0.82; a.vy = (a.vy + fy) * 0.82;
       }
       edges.forEach(e => {
@@ -312,7 +317,17 @@
       });
       nodes.forEach(nd => {
         if (nd.fixed) { nd.vx = nd.vy = 0; return; }
+        const vmax = 30;
+        nd.vx = Math.max(-vmax, Math.min(vmax, nd.vx));
+        nd.vy = Math.max(-vmax, Math.min(vmax, nd.vy));
         nd.x += nd.vx; nd.y += nd.vy;
+        if (!Number.isFinite(nd.x) || !Number.isFinite(nd.y)){
+          const a0 = Math.random() * Math.PI * 2, r0 = 200 + Math.random() * 900;
+          nd.x = Math.cos(a0) * r0; nd.y = Math.sin(a0) * r0; nd.vx = nd.vy = 0;
+        }
+        const LIMIT = 6000;
+        nd.x = Math.max(-LIMIT, Math.min(LIMIT, nd.x));
+        nd.y = Math.max(-LIMIT, Math.min(LIMIT, nd.y));
       });
     }
   }
@@ -741,6 +756,15 @@
     return `${p2(d.getDate())}.${p2(d.getMonth()+1)}.${d.getFullYear()}, ${p2(d.getHours())}:${p2(d.getMinutes())}`;
   }
 
+  function labelledEdges(){
+    const sentiment = DATA.meta.sentiment;
+    if (!sentiment) return 0;
+    if (Array.isArray(sentiment)) return sentiment.filter(x => x !== "neutral").length;
+    return Object.entries(sentiment)
+      .filter(([label]) => label !== "neutral")
+      .reduce((sum, [, count]) => sum + count, 0);
+  }
+
   function renderStats(){
     const m = DATA.meta;
     document.getElementById("stats").innerHTML = `
@@ -750,7 +774,7 @@
       <span><b>${m.mentions}</b> Nennungen</span>
       <span>${esc(m.date_from)} – ${esc(m.date_to)}</span>
       <span title="Zeitpunkt dieser Auswertung">Stand ${esc(buildStamp())}</span>
-      <span title="Kanten mit erkennbarem Beziehungston">${m.sentiment && m.sentiment.length ? m.sentiment.filter(x => x !== "neutral").length : 0} bewertete Kanten</span>`;
+      <span title="Kanten mit erkennbarem Beziehungston">${labelledEdges()} bewertete Kanten</span>`;
   }
 
   function renderPartyChips(){
@@ -1041,7 +1065,14 @@
     const vis = visibleNodes();
     if (!vis.length) return;
     let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
-    vis.forEach(n => { minX=Math.min(minX,n.x); maxX=Math.max(maxX,n.x); minY=Math.min(minY,n.y); maxY=Math.max(maxY,n.y); });
+    vis.forEach(n => {
+      if (!Number.isFinite(n.x) || !Number.isFinite(n.y)) return;
+      minX=Math.min(minX,n.x); maxX=Math.max(maxX,n.x);
+      minY=Math.min(minY,n.y); maxY=Math.max(maxY,n.y);
+    });
+    if (!Number.isFinite(minX) || !Number.isFinite(maxX) || maxX - minX > 40000 || maxY - minY > 40000){
+      view.k = 0.5; view.x = W()/2; view.y = H()/2; return;
+    }
     const pad = 90;
     const k = Math.min(2, Math.min((W()-pad*2)/Math.max(1,maxX-minX), (H()-pad*2)/Math.max(1,maxY-minY)));
     view.k = Math.max(0.2, k);
@@ -1070,6 +1101,10 @@
     if (a){ selectNode(a.id); }
   }
   document.getElementById("loading").classList.remove("on");
+  // Für Fehlersuche im Browser: window.__DBG__ in der Konsole inspizierbar.
+  window.__DBG__ = {nodes, edges, state, get visibleNodes(){return nodes.filter(n=>n.visible).length;},
+                    get visibleEdges(){return edges.filter(e=>e.visible).length;},
+                    get positions(){return nodes.slice(0,5).map(n=>({name:n.name,x:n.x,y:n.y}));}};
 })();
 </script>
 </body>
