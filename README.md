@@ -425,16 +425,27 @@ pro Zeile, `#` als Kommentar); sie werden bei jedem Lauf mitgeladen und beim
 
 ## Die Grafik
 
-`graph.html` ist eigenständig (kein CDN, keine Serververbindung nötig):
+Die Seite besteht aus vier Dateien – `index.html` (Hülle), `app.js` (Logik),
+`d3.v7.min.js` (Layout) und `graph.json` (Daten), damit der Browser Daten und
+Code getrennt zwischenspeichert. d3 liegt im Repository; es wird nichts von
+einem CDN geladen, die Seite braucht aber einen HTTP-Server (`run.py --open`
+startet einen lokalen).
 
-* Kraft-Layout auf Canvas, Zoom (Mausrad), Verschieben, Knoten ziehen
-* Knotengröße = Artikelanzahl, Kantenstärke = gemeinsame Artikel
-* Farbe = Partei, sonst Funktionskategorie
-* Klick auf Person: Funktion, Parteien, Schreibweisen, Beziehungen, Artikelliste
+* Kraft-Layout mit d3-force (Barnes-Hut), Canvas-Rendering, Zoom (Mausrad),
+  Verschieben, Knoten ziehen
+* **Keine überlappenden Knoten:** `forceCollide` rechnet im selben Maßstab wie
+  die gezeichneten Kreise (Radius × Zoom); ein zusätzlicher Durchlauf schiebt
+  Restüberschneidungen auseinander, indem er den kleineren Knoten versetzt
+* Labels nur, wenn der Kreis lesbar groß ist und der Text keinen bereits
+  gezeichneten überdeckt
+* Knotengröße = Artikelanzahl, Kantenstärke = gemeinsame Artikel bzw. Sätze
+* Farbe = Partei, Funktionskategorie oder Netzwerk-Cluster (umschaltbar)
+* Klick auf Person: Funktion, Parteien, frühere Namen, Beziehungen, Artikelliste
 * Klick auf Kante: gemeinsame Artikel und Belegsätze mit Signalwörtern
 * Suche mit anklickbarer Trefferliste (Pfeiltasten + Enter, Escape leert),
   Treffer werden im Graphen hervorgehoben und die Personenliste gefiltert
-* Filter: Parteien, Mindestzahl gemeinsamer Artikel, Mindestartikelzahl
+* Filter: Parteien, Zeitraum, Mindestzahl gemeinsamer Artikel, Mindestartikelzahl,
+  nur belegte Beziehungen
 * Export als PNG und JSON
 
 ## Aufbau des Codes
