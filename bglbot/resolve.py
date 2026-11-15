@@ -29,6 +29,9 @@ class Person:
     role_contexts: Counter = field(default_factory=Counter)
     parties: Counter = field(default_factory=Counter)
     articles: list[str] = field(default_factory=list)
+    #: Frühere bzw. spätere Schreibweisen nach Namenswechsel (Heirat/Scheidung):
+    #: Name -> {"articles": [...], "from": "", "to": ""}
+    aliases: dict[str, dict] = field(default_factory=dict)
     mentions: int = 0
     first_seen: str = ""
     last_seen: str = ""
@@ -99,6 +102,12 @@ class Person:
             "confidence": self.confidence,
             "ambiguous": self.ambiguous,
             "variants": [v for v, _ in self.variants.most_common(6)],
+            "aliases": [
+                {"name": name, "articles": len(info.get("articles") or []),
+                 "from": info.get("from", ""), "to": info.get("to", "")}
+                for name, info in sorted(self.aliases.items(),
+                                         key=lambda kv: kv[1].get("from") or "")
+            ],
             "roles": self._roles_by_canonical()[:6],
             "contexts": [c for c, _ in self.role_contexts.most_common(4)],
         }
@@ -230,11 +239,16 @@ def resolve(extractions: list[ArticleExtraction]) -> list[Person]:
 
     _assign_unique_ids(persons)
 
+    # Namenswechsel zusammenführen, bevor die Nennungen ihre Personen-ID
+    # bekommen – sonst zeigen Kanten auf eine ID, die es nicht mehr gibt.
+    merged = _merge_name_changes(persons, extractions)
+
     for ext in extractions:
         for local in ext.persons:
             person = local_to_person.get(id(local))
             if person is None:
                 continue
+            person = merged.get(id(person), person)
             for mention in local.mentions:
                 mention.person_key = person.id
 
@@ -303,6 +317,65 @@ def _attach_loose_mentions(persons: list[Person], extractions: list[ArticleExtra
                 person.articles.append(ext.article.id)
 
 
+def _merge_name_changes(persons: list[Person],
+                        extractions: list[ArticleExtraction]) -> dict[int, Person]:
+    """Führt Personen zusammen, deren Nachname sich geändert hat.
+
+    „Elisabeth Pauer“ und „Elisabeth Pauer-Gerbavsits“ sind dieselbe Person: Der
+    kürzere Nachname ist Bestandteil des längeren, der Vorname stimmt. Die
+    zuletzt verwendete Schreibweise wird zum Anzeigenamen, die andere bleibt als
+    früherer Name mit Zeitraum erhalten.
+    """
+    dates: dict[str, str] = {ext.article.id: ext.article.date
+                             for ext in extractions if ext.article.date}
+
+    def span(person: Person) -> tuple[str, str]:
+        seen = sorted(dates[a] for a in person.articles if a in dates)
+        return (seen[0] if seen else "", seen[-1] if seen else "")
+
+    by_first: dict[str, list[Person]] = defaultdict(list)
+    for person in persons:
+        parts = person.name.split()
+        if len(parts) >= 2:
+            by_first[lexicon.canonical_first_name(parts[0])].append(person)
+
+    removed: set[int] = set()
+    merged: dict[int, Person] = {}
+    for group in by_first.values():
+        if len(group) < 2:
+            continue
+        # Zuletzt verwendete Schreibweise zuerst – bei Scheidung fällt der
+        # Doppelname wieder weg.
+        for primary in sorted(group, key=lambda p: (span(p)[1], len(p.name)), reverse=True):
+            if id(primary) in removed:
+                continue
+            components = primary.name.split()[-1].lower().split("-")
+            if len(components) < 2:
+                continue
+            for alias in group:
+                if alias is primary or id(alias) in removed:
+                    continue
+                surname = alias.name.split()[-1].lower()
+                if surname not in components or len(surname) < 3:
+                    continue
+                first_from, first_to = span(alias)
+                primary.aliases[alias.name] = {"articles": list(alias.articles),
+                                               "from": first_from, "to": first_to}
+                for article_id in alias.articles:
+                    if article_id not in primary.articles:
+                        primary.articles.append(article_id)
+                primary.mentions += alias.mentions
+                primary.variants.update(alias.variants)
+                primary.roles.update(alias.roles)
+                primary.role_surfaces.update(alias.role_surfaces)
+                primary.role_contexts.update(alias.role_contexts)
+                primary.parties.update(alias.parties)
+                removed.add(id(alias))
+                merged[id(alias)] = primary
+    persons[:] = [p for p in persons if id(p) not in removed]
+    return merged
+
+
 def _compute_dates(persons: list[Person], extractions: list[ArticleExtraction]) -> None:
     dates: dict[str, str] = {}
     for ext in extractions:
@@ -312,3 +385,7 @@ def _compute_dates(persons: list[Person], extractions: list[ArticleExtraction]) 
         seen = sorted(dates[a] for a in person.articles if a in dates)
         person.first_seen = seen[0] if seen else ""
         person.last_seen = seen[-1] if seen else ""
+        for info in person.aliases.values():
+            alias_dates = sorted(dates[a] for a in info.get("articles") or [] if a in dates)
+            info["from"] = alias_dates[0] if alias_dates else info.get("from", "")
+            info["to"] = alias_dates[-1] if alias_dates else info.get("to", "")

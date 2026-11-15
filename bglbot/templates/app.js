@@ -446,6 +446,10 @@
         ${(n.tone.examples || []).map(ex => `<blockquote>${esc(ex.sentence)}
           <div class="hint" style="margin-top:5px">${esc(ex.article)} · ${esc(ex.date)}${ex.cues && ex.cues.length ? " · " + esc(ex.cues.join(", ")) : ""}</div></blockquote>`).join("")}
       ` : ""}
+      ${n.aliases && n.aliases.length ? `<h3>Frühere Namen</h3><div class="hint">${n.aliases.map(a => {
+          const span = [a.from, a.to].filter(Boolean).map(d => String(d).slice(0, 7)).join(" – ");
+          return esc(a.name) + (span ? ` <span style="color:#6b7885">(${esc(span)})</span>` : "");
+        }).join("<br>")}</div>` : ""}
       ${n.variants && n.variants.length > 1 ? `<h3>Schreibweisen</h3><div class="hint">${n.variants.map(esc).join(" · ")}</div>` : ""}
       <h3>Beziehungen (${partners.length})</h3>
       ${partners.map(({other,e}) => other ? `<div class="row" data-goto="${esc(other.id)}">
@@ -570,15 +574,21 @@
     draw();
   }
 
+  // Suchtext inklusive früherer Namen („Elisabeth Pauer“ findet Pauer-Gerbavsits).
+  function searchText(n){
+    const aliases = (n.aliases || []).map(a => a.name).join(" ");
+    return (n.name + " " + aliases + " " + (n.variants || []).join(" ")).toLowerCase();
+  }
+
   function renderList(){
     const list = document.getElementById("personList");
     let items = nodes.filter(n => n.visible);
-    if (state.query) items = items.filter(n => n.name.toLowerCase().includes(state.query));
+    if (state.query) items = items.filter(n => searchText(n).includes(state.query));
     items.sort((a,b) => b.articles - a.articles || b.degree - a.degree);
     document.getElementById("listCount").textContent = "(" + items.length + ")";
     list.innerHTML = items.map(n => `
       <div class="row" data-id="${esc(n.id)}">
-        <span class="n"><i style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${colorOf(n)};margin-right:7px"></i>${esc(n.name)}</span>
+        <span class="n"><i style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${colorOf(n)};margin-right:7px"></i>${esc(n.name)}${n.aliases && n.aliases.length ? `<span style="color:#5f6b78;font-size:11px"> · früher ${esc(n.aliases[0].name.split(" ").slice(-1)[0])}</span>` : ""}</span>
         <span class="c">${n.articles}A · ${n.degree}G</span>
       </div>`).join("");
     list.querySelectorAll("[data-id]").forEach(el => el.addEventListener("click", () => {
@@ -683,7 +693,7 @@
 
   function computeHits(query){
     return nodes
-      .filter(n => n.name.toLowerCase().includes(query))
+      .filter(n => searchText(n).includes(query))
       .sort((a, b) => rankName(a, query) - rankName(b, query)
         || b.articles - a.articles || a.name.localeCompare(b.name));
   }

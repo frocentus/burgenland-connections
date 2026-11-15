@@ -347,6 +347,21 @@ nicht: „Pannonia Fields“ ist ein Gelände, „Doskozil Hilfe“ ein Satzteil
 Story-ID noch nicht im Korpus ist, und hängt sie an. Tägliche Aktualisierung in
 Sekunden statt Minuten.
 
+## Namenswechsel (Heirat, Scheidung)
+
+Ändert sich ein Nachname, entstehen sonst zwei Personen. `resolve._merge_name_changes`
+führt sie zusammen, wenn der Vorname gleich ist und der kürzere Nachname
+Bestandteil des längeren ist – „Elisabeth Pauer“ und „Elisabeth Pauer-Gerbavsits“
+also. Die zuletzt verwendete Schreibweise wird zum Anzeigenamen, die andere
+bleibt als **früherer Name mit Zeitraum** erhalten („Elisabeth Pauer,
+2019-10 – 2021-09“) und ist über die Suche auffindbar.
+
+Im Referenzlauf betrifft das vier Personen, darunter Anja Haider-Wallner
+(früher Anja Haider), Ursula Mindler-Steiner und Katharina Graf-Janoska.
+Geprüft wird nur die Nachnamenstruktur, nicht der Familienstand – bei
+gleichnamigen Personen mit ähnlichem Nachnamen bleibt es deshalb bei zwei
+Knoten.
+
 ## Evaluation
 
 `eval/gold.json` enthält eine manuell geprüfte Stichprobe (Story-ID → Namen).

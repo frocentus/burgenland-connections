@@ -296,3 +296,38 @@ class ResolutionTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class NameChangeTest(unittest.TestCase):
+    """Heirat und Scheidung: eine Person, zwei Schreibweisen."""
+
+    @staticmethod
+    def _article(article_id: str, published: str, text: str) -> Article:
+        article = make_article(text)
+        article.id = article_id
+        article.published = published
+        return article
+
+    def _persons(self, *articles):
+        return resolve.resolve([extract(article) for article in articles])
+
+    def test_married_name_becomes_one_person(self):
+        before = self._article("111", "2020-03-01T09:00:00",
+                               "Moderatorin Elisabeth Pauer moderierte die Sendung.")
+        after = self._article("222", "2023-05-01T09:00:00",
+                              "Moderatorin Elisabeth Pauer-Gerbavsits moderierte die Sendung.")
+        persons = self._persons(before, after)
+        names = [p.name for p in persons]
+        self.assertIn("Elisabeth Pauer-Gerbavsits", names)
+        self.assertNotIn("Elisabeth Pauer", names)
+        person = next(p for p in persons if p.name == "Elisabeth Pauer-Gerbavsits")
+        self.assertIn("Elisabeth Pauer", person.aliases)
+        self.assertEqual(len(person.articles), 2)
+
+    def test_same_first_name_different_family_stays_apart(self):
+        one = self._article("333", "2021-01-01T09:00:00",
+                            "Moderatorin Elisabeth Pauer moderierte die Sendung.")
+        other = self._article("444", "2021-02-01T09:00:00",
+                              "Bäuerin Elisabeth Pauli verkaufte Erdbeeren.")
+        names = [p.name for p in self._persons(one, other)]
+        self.assertIn("Elisabeth Pauer", names)
+        self.assertIn("Elisabeth Pauli", names)
