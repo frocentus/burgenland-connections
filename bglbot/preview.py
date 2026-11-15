@@ -5,8 +5,8 @@ from __future__ import annotations
 import math
 from pathlib import Path
 
-import numpy as np
-from PIL import Image, ImageDraw, ImageFont
+# numpy/Pillow sind optional: ohne sie läuft die Auswertung weiter, nur die
+# PNG-Vorschau entfällt. Deshalb wird erst in render_png importiert.
 
 SENTI_COLORS = {
     "feindselig": (255, 86, 86), "negativ": (255, 150, 94), "gemischt": (214, 178, 70),
@@ -34,7 +34,9 @@ def _color(node: dict) -> tuple[int, int, int]:
     return CATEGORY_COLORS.get(node.get("role_category") or "", (140, 152, 165))
 
 
-def _layout(nodes: list[dict], edges: list[dict], iterations: int = 1200) -> np.ndarray:
+def _layout(nodes: list[dict], edges: list[dict], iterations: int = 1200):
+    import numpy as np
+
     n = len(nodes)
     rng = np.random.default_rng(7)
     pos = rng.normal(0, 260, size=(n, 2))
@@ -67,6 +69,7 @@ def _layout(nodes: list[dict], edges: list[dict], iterations: int = 1200) -> np.
 
 
 def _font(size: int):
+    from PIL import ImageFont
     for name in ("segoeuib.ttf", "segoeui.ttf", "arialbd.ttf", "arial.ttf"):
         try:
             return ImageFont.truetype(name, size)
@@ -88,6 +91,9 @@ def render_png(graph: dict, path: Path, width: int = 2000, height: int = 1300,
     nodes = [n for n in nodes if n["id"] in linked]
     if not nodes:
         raise ValueError("Keine Knoten für die Vorschau")
+
+    import numpy as np
+    from PIL import Image, ImageDraw
 
     pos = _layout(nodes, edges)
     pos -= pos.min(axis=0)

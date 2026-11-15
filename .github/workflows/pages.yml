@@ -27,7 +27,7 @@ jobs:
         with:
           python-version: "3.12"
       - name: Abhängigkeiten
-        run: python -m pip install --upgrade pip lxml
+        run: python -m pip install --upgrade pip -r requirements.txt
       - name: Unit-Tests
         run: python -m unittest discover -s tests -v
       - name: Syntaxprüfung
@@ -46,7 +46,7 @@ jobs:
           python-version: "3.12"
 
       - name: Abhängigkeiten
-        run: python -m pip install --upgrade pip lxml
+        run: python -m pip install --upgrade pip -r requirements.txt
 
       # HTTP-Cache: macht Folgeläufe deutlich schneller und schont den ORF
       - name: Cache der abgerufenen Seiten

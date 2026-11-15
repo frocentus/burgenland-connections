@@ -13,6 +13,9 @@ data/wayback-*.json
 # Nutzer-Listen bleiben versioniert
 !data/extra_urls.txt
 
+# Arbeitsdateien
+tmp/
+
 # Betriebssystem / Editor
 .DS_Store
 Thumbs.db
