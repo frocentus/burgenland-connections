@@ -22,7 +22,9 @@ Die jeweils aktuelle Grafik wird über GitHub Pages veröffentlicht:
 
 Ein GitHub-Actions-Workflow (`.github/workflows/pages.yml`) prüft bei jedem
 Push die Tests, crawlt anschließend und lädt `graph.html` als `index.html`
-hoch. Zusätzlich läuft er **täglich um 05:00 UTC** und lässt sich manuell über
+hoch. Der CI-Lauf crawlt bewusst schlanker als ein lokaler Lauf
+(`--pages 30 --wayback 600`, rund 730 Artikel, Laufzeit ~30 min); lokal sind
+mit `--wayback 1200` rund 1.300 Artikel möglich. Zusätzlich läuft er **täglich um 05:00 UTC** und lässt sich manuell über
 *Actions → CI und GitHub Pages → Run workflow* starten. HTTP- und
 Wikipedia-Antworten werden zwischen den Läufen gecacht.
 

@@ -3,6 +3,10 @@ name: CI und GitHub Pages
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - "**.md"
+      - "LICENSE"
+      - ".gitignore"
   schedule:
     # Täglich 05:00 UTC – hält die veröffentlichte Grafik aktuell
     - cron: "0 5 * * *"
