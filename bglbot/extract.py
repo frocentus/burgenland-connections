@@ -207,6 +207,8 @@ class ExtractionContext:
     common_nouns: set[str] = field(default_factory=set)
     #: Vornamen, die erst im zweiten Durchlauf aus dem Korpus gelernt wurden.
     extra_first_names: set[str] = field(default_factory=set)
+    #: Nachnamen, die im Korpus bereits einer Person zugeordnet wurden.
+    known_surnames: set[str] = field(default_factory=set)
 
 
 # --------------------------------------------------------------------------
@@ -402,12 +404,17 @@ def _score_span(span: list[T.Token], sentence: str, tokens: list[T.Token],
         between = tokens[pos + 1:i]
         if between and between[-1].text.lower() in {"der", "des", "dem", "den"}:
             return None
-        score += 4
-        evidence.append("funktion_davor")
-        details["role"] = (role, role_surface, pos)
-        party = _party_prefix(sentence, tokens, pos)
-        if party:
-            details["party"] = party
+        # Steht zwischen Funktion und Kandidat bereits ein Name, gehört die
+        # Funktion zu diesem ("Landeshauptmann Hans Peter Doskozil … Doskozil Hilfe").
+        if any(T.is_name_token(t.text) for t in between):
+            role_hit = None
+        else:
+            score += 4
+            evidence.append("funktion_davor")
+            details["role"] = (role, role_surface, pos)
+            party = _party_prefix(sentence, tokens, pos)
+            if party:
+                details["party"] = party
 
     name_end = tokens[j].end
     party = _party_after(sentence, name_end)
@@ -476,7 +483,8 @@ def _in_enumeration(sentence: str, start: int, end: int) -> bool:
 
 
 def _accept(score: int, evidence: list[str], n_tokens: int, surface: str,
-            shift: int) -> bool:
+            shift: int, known_surnames: set[str] | None = None) -> bool:
+    known_surnames = known_surnames or set()
     strong = any(e in evidence for e in ("funktion_davor", "partei_klammer", "bekannt", "redeverb"))
     repeat = any(e.startswith("wiederholt_") for e in evidence)
     if n_tokens == 1:
@@ -486,6 +494,15 @@ def _accept(score: int, evidence: list[str], n_tokens: int, surface: str,
             "funktion_davor" in evidence or "bekannt" in evidence
         )
 
+    # Mehrteilige Namen brauchen einen Anker: einen Vornamen oder eine Funktion.
+    # Sonst entstehen aus „Doskozil Hilfe“, „Causa Tojner“ oder „Pannonia Fields“
+    # Scheinpersonen – zwei großgeschriebene Wörter sind noch kein Name.
+    anchor = ("vorname" in evidence or "vorname_gelernt" in evidence
+              or "funktion_davor" in evidence or "partei_klammer" in evidence
+              or "bekannt" in evidence
+              or surface.split()[-1].lower() in known_surnames)
+    if not anchor:
+        return False
     if ("vorname" in evidence or "vorname_gelernt" in evidence) and score >= 3 + shift:
         return True
     if score >= MIN_MULTIWORD_SCORE + shift and (strong or "vorname" in evidence or "vorname_gelernt" in evidence):
@@ -534,7 +551,7 @@ def extract_article(article: Article, ctx: ExtractionContext,
                     continue
                 score, evidence, details = scored
                 if _accept(score, evidence, len(span), " ".join(t.text for t in span),
-                           threshold_shift):
+                           threshold_shift, ctx.known_surnames):
                     candidates.append((i, j, span, score, evidence, details))
                 elif len(span) == 1 and score >= 2:
                     loose.append(_make_mention(span, s_idx, sentence_units[s_idx], score, evidence))

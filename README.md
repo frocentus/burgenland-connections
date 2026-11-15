@@ -118,8 +118,8 @@ Index und HTTP-Cache läuft derselbe Aufbau danach in wenigen Sekunden
 ## Ergebnis des Referenzlaufs
 
 ```
-2422 Artikel · 2504 Personen · 9596 Beziehungen · 11523 Nennungen
-Zeitraum 2019-06-03 – 2026-11-14 · 1954 Artikel mit Personennennungen
+2422 Artikel · 2277 Personen · 7709 Beziehungen · 9360 Nennungen
+Zeitraum 2019-06-03 – 2026-11-14 · 1878 Artikel mit Personennennungen
 672 mit Wikipedia-Artikel · 671 mit Wikidata-Daten
 ```
 
@@ -334,9 +334,14 @@ für die Zusammenführung zweier Nennungen im Korpus.
 **Gelernte Vornamen:** Ein zweiter Extraktionsdurchlauf sammelt bestätigte
 Nachnamen und sucht im gesamten Text nach „unbekanntes Wort + bekannter
 Nachname“ – das sind fast immer Vornamen („Nikolaus Berlakovich“, auch wenn
-„Nikolaus“ in keiner Liste steht). Im Referenzlauf **299 gelernte Vornamen**,
-+124 Personen. Mit `--holdout` lassen sich die Artikel der Evaluationsstichprobe
-vom Lernen ausnehmen, um die Wirkung ehrlich zu messen.
+„Nikolaus“ in keiner Liste steht). Im Referenzlauf **281 gelernte Vornamen**.
+
+Dabei gilt eine Sperre gegen Rückkopplung: Bereits bestätigte Nachnamen,
+Füllwörter („Causa“, „Herr“), Ortsnamen („Pannonia“), Rollenbezeichnungen und
+Wörter, die im Korpus auch klein vorkommen, werden nie als Vorname gelernt.
+Ein mehrteiliger Name braucht außerdem einen Anker – Vorname, Funktion,
+Parteikürzel oder bestätigter Nachname. Zwei großgeschriebene Wörter genügen
+nicht: „Pannonia Fields“ ist ein Gelände, „Doskozil Hilfe“ ein Satzteil.
 
 **Inkrementeller Lauf:** `python run.py --incremental` lädt nur Artikel, deren
 Story-ID noch nicht im Korpus ist, und hängt sie an. Tägliche Aktualisierung in

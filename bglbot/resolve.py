@@ -257,9 +257,15 @@ def _make_person(group: list[Entry], ambiguous: bool = False) -> Person:
         person.mentions += local.count
         if ext.article.id not in person.articles:
             person.articles.append(ext.article.id)
+    # Genitivformen meiden: „Michael Tojners“ ist eine Beugung von
+    # „Michael Tojner“ und kein eigener Name.
+    surfaces = set(name_counts)
+    cleaned = {name: count for name, count in name_counts.items()
+               if not (name.endswith("s") and len(name) > 4 and name[:-1] in surfaces)}
+    candidates = cleaned or name_counts
     # Mehrteilige Namen bevorzugen („Hans Peter Doskozil“ vor „Peter Doskozil“),
     # danach die häufigste Schreibweise.
-    best = max(name_counts, key=lambda n: (len(n.split()), name_counts[n], len(n)))
+    best = max(candidates, key=lambda n: (len(n.split()), candidates[n], len(n)))
     person.name = best
     person.surname = best.split()[-1]
     return person

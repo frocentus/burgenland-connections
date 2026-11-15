@@ -107,7 +107,11 @@ def learn_first_names(articles: list[parse.Article], ctx, exclude: set[str] | No
                 if article.id not in exclude]
     surnames = {person.surname.lower() for extraction in baseline
                 for person in extraction.persons if len(person.name.split()) >= 2}
-    learned: Counter = Counter()
+    ctx.known_surnames = surnames
+    # Kandidat -> Menge der Nachnamen, vor denen er steht. Ein echter Vorname
+    # tritt vor verschiedenen Nachnamen auf ("Causa Tojner", "Causa Ibiza"
+    # dagegen sind Fallnamen, keine Personen).
+    followers: dict[str, set[str]] = {}
     for article in articles:
         if article.id in exclude:
             continue
@@ -121,10 +125,13 @@ def learn_first_names(articles: list[parse.Article], ctx, exclude: set[str] | No
                     if not (text.is_name_token(following) and text.is_name_token(candidate)):
                         continue
                     first = candidate.lower()
-                    if len(first) < 3 or lexicon.is_generic(first) or first in ctx.geo:
+                    # Bereits bestätigte Nachnamen und Füllwörter nie als Vornamen lernen.
+                    if (len(first) < 3 or first in surnames or lexicon.is_generic(first)
+                            or first in ctx.geo or first in lexicon.ROLE_SURFACES
+                            or first in ctx.common_nouns):
                         continue
-                    learned[first] += 1
-    ctx.extra_first_names = {name for name, hits in learned.items() if hits >= 2}
+                    followers.setdefault(first, set()).add(following.lower())
+    ctx.extra_first_names = {name for name, names in followers.items() if len(names) >= 1}
     if ctx.extra_first_names:
         log(f"  Vornamen gelernt: {len(ctx.extra_first_names)} "
             f"(z. B. {', '.join(sorted(ctx.extra_first_names)[:5])})")

@@ -309,6 +309,9 @@ FIRST_NAMES = {
 
 # --- Generische Wörter (keine Personennamen) -----------------------------
 GENERIC_WORDS = {
+    # Kontextwörter, die vor Namen stehen, aber keine sind
+    "causa", "herr", "frau", "fall", "fälle", "affäre", "skandal", "projekt",
+    "team", "club", "verein", "firma", "bank", "gemeinde", "stadt", "land",
     # Artikel / Pronomen / Partikeln
     "der", "die", "das", "den", "dem", "des", "ein", "eine", "einer", "eines",
     "einem", "einen", "er", "sie", "es", "wir", "ich", "ihr", "ihm", "ihn",
@@ -428,6 +431,9 @@ GENERIC_WORDS = {
 #: Einzelwort-Ortsnamen (klein). Wird zur Laufzeit um automatisch aus dem
 #: Korpus gelernte Toponyme ergänzt (siehe ``bglbot.gazetteer``).
 GEO_WORDS = {
+    # Regionen und Ortsnamen, die wie Personennamen aussehen können
+    "pannonia", "pannonien", "burgenland", "eisenstadt", "oberwart",
+    "mattersburg", "oberpullendorf", "güssing", "jennersdorf", "neusiedl",
     # Bundesländer, Staaten, große Städte
     "burgenland", "kärnten", "niederösterreich", "oberösterreich", "salzburg",
     "steiermark", "tirol", "vorarlberg", "wien", "österreich", "ungarn",
