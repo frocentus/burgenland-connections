@@ -42,6 +42,7 @@
     showIsolated: false,
     evidenceOnly: true,
     colorMode: "party",
+    zoom: 1,
     parties: new Set(DATA.parties),
     query: "",
     selected: null,
@@ -55,7 +56,7 @@
   };
 
   // ---------- Layout (Kraftsimulation) ----------
-  const W = () => canvas.clientWidth, H = () => canvas.clientHeight;
+
   let view = {x:0, y:0, k:1};
   const nodes = DATA.nodes.map(n => ({...n, x:0, y:0, vx:0, vy:0, r:0, visible:true, fixed:false}));
   const nodeIndex = new Map(nodes.map(n => [n.id, n]));
@@ -73,107 +74,6 @@
     });
   }
 
-  function simulate(iterations){
-    // Barnes-Hut über d3-force: stabil und O(n log n) statt O(n²). Die Kanten
-    // werden kopiert, weil forceLink source/target in Knotenobjekte umwandelt
-    // und das übrige Programm die IDs erwartet.
-    if (window.d3 && d3.forceSimulation){
-      const links = edges.map(e => ({source: e.source, target: e.target,
-                                     weight: e.weight || 1}));
-      const sim = d3.forceSimulation(nodes)
-        .force("link", d3.forceLink(links).id(d => d.id)
-          .distance(e => 42 + (e.source.r || 5) + (e.target.r || 5))
-          .strength(e => Math.min(0.9, 0.3 + 0.08 * Math.min(8, e.weight))))
-        .force("charge", d3.forceManyBody().strength(-95).distanceMax(620))
-        .force("center", d3.forceCenter(0, 0))
-        .force("collide", d3.forceCollide(d => (d.r || 5) + 2).strength(1).iterations(2))
-        .stop();
-      sim.alpha(1).alphaDecay(0.022);
-      for (let i = 0; i < iterations; i++) sim.tick();
-      sim.stop();
-      nodes.forEach(nd => {
-        if (!Number.isFinite(nd.x) || !Number.isFinite(nd.y)){
-          const angle = Math.random() * Math.PI * 2, radius = 200 + Math.random() * 900;
-          nd.x = Math.cos(angle) * radius; nd.y = Math.sin(angle) * radius;
-        }
-        nd.vx = 0; nd.vy = 0;
-      });
-      separate();
-      return;
-    }
-
-    const n = nodes.length;
-    // Bei großen Netzwerken weniger Iterationen und Nachbarschafts-Gitter statt
-    // Alles-mit-allem (sonst blockiert der erste Aufbau den Browser).
-    const GX = 190, MAXD2 = 640000;   // 800 px Reichweite
-    // Bei vielen Knoten mehr Abstoßung, sonst verklumpt alles in der Mitte.
-    const spread = Math.min(3.2, Math.max(1, n / 550));
-    for (let it=0; it<iterations; it++){
-      const alpha = Math.max(0.02, 1 - it/iterations);
-      const grid = new Map();
-      for (const nd of nodes){
-        const key = Math.floor(nd.x/GX) + ":" + Math.floor(nd.y/GX);
-        const bucket = grid.get(key);
-        if (bucket) bucket.push(nd); else grid.set(key, [nd]);
-      }
-      for (let i=0;i<n;i++){
-        const a = nodes[i];
-        let fx = 0, fy = 0;
-        const cx = Math.floor(a.x/GX), cy = Math.floor(a.y/GX);
-        for (let gx=cx-2; gx<=cx+2; gx++){
-          for (let gy=cy-2; gy<=cy+2; gy++){
-            const bucket = grid.get(gx + ":" + gy);
-            if (!bucket) continue;
-            for (const b of bucket){
-              if (b === a) continue;
-              let dx = a.x-b.x, dy = a.y-b.y;
-              let d2 = dx*dx + dy*dy;
-              if (d2 > MAXD2) continue;
-              if (d2 < 1) { dx = Math.random()-0.5; dy = Math.random()-0.5; d2 = 1; }
-              const d = Math.sqrt(d2);
-              const rep = 1400 * spread * alpha / d2;
-              fx += (dx/d) * rep; fy += (dy/d) * rep;
-            }
-          }
-        }
-        fx -= a.x * 0.012 * alpha; fy -= a.y * 0.012 * alpha;
-        // Begrenzen: Bei vielen Nachbarn summieren sich die Kräfte sonst zu
-        // Werten, die das Layout auseinandertreiben (Positionen bis 1e12).
-        const FMAX = 80;
-        fx = Math.max(-FMAX, Math.min(FMAX, fx));
-        fy = Math.max(-FMAX, Math.min(FMAX, fy));
-        a.vx = (a.vx + fx) * 0.82; a.vy = (a.vy + fy) * 0.82;
-      }
-      edges.forEach(e => {
-        const a = nodeIndex.get(e.source), b = nodeIndex.get(e.target);
-        if (!a || !b) return;
-        const dx = b.x-a.x, dy = b.y-a.y;
-        const d = Math.sqrt(dx*dx+dy*dy) || 1;
-        const rest = 70 + (a.r + b.r) * 1.6;
-        const f = (d - rest) * 0.012 * Math.min(3, 1 + Math.log(1+e.weight)) * alpha;
-        const ux = dx/d, uy = dy/d;
-        a.vx += ux*f; a.vy += uy*f;
-        b.vx -= ux*f; b.vy -= uy*f;
-      });
-      nodes.forEach(nd => {
-        if (nd.fixed) { nd.vx = nd.vy = 0; return; }
-        const vmax = 30;
-        nd.vx = Math.max(-vmax, Math.min(vmax, nd.vx));
-        nd.vy = Math.max(-vmax, Math.min(vmax, nd.vy));
-        nd.x += nd.vx; nd.y += nd.vy;
-        if (!Number.isFinite(nd.x) || !Number.isFinite(nd.y)){
-          const a0 = Math.random() * Math.PI * 2, r0 = 200 + Math.random() * 900;
-          nd.x = Math.cos(a0) * r0; nd.y = Math.sin(a0) * r0; nd.vx = nd.vy = 0;
-        }
-        const LIMIT = 6000;
-        nd.x = Math.max(-LIMIT, Math.min(LIMIT, nd.x));
-        nd.y = Math.max(-LIMIT, Math.min(LIMIT, nd.y));
-      });
-    }
-  }
-
-  // Überlappungen hart auflösen: d3.forceCollide arbeitet iterativ und lässt
-  // bei sehr unterschiedlichen Radien Restüberlappungen zurück.
   function separate(passes = 90){
     const CELL = 150;
     for (let pass = 0; pass < passes; pass++){
@@ -210,213 +110,263 @@
     }
   }
 
-  // ---------- Rendering ----------
-  const canvas = document.getElementById("graph");
-  const ctx = canvas.getContext("2d");
+  // ---------- Rendering (SVG mit d3) ----------
+  const svgEl = document.getElementById("graph");
+  const svg = d3.select(svgEl);
+  const viewport = svg.append("g");
+  const linkLayer = viewport.append("g");
+  const nodeLayer = viewport.append("g");
   const tooltip = document.getElementById("tooltip");
 
-  function resize(){
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = canvas.clientWidth * dpr;
-    canvas.height = canvas.clientHeight * dpr;
-    ctx.setTransform(dpr,0,0,dpr,0,0);
-  }
-  window.addEventListener("resize", () => { resize(); draw(); });
+  let simulation = null;
+  let linkData = [];
+  let nodeSel = nodeLayer.selectAll("g.node");
+  let linkSel = linkLayer.selectAll("line.link");
+  let visibleKey = "";
 
-  function toScreen(p){ return {x: p.x*view.k + view.x, y: p.y*view.k + view.y}; }
-  function toWorld(sx, sy){ return {x: (sx - view.x)/view.k, y: (sy - view.y)/view.k}; }
+  function W(){ return svgEl.clientWidth || 900; }
+  function H(){ return svgEl.clientHeight || 700; }
 
-  function visibleNodes(){
-    return nodes.filter(n => n.visible);
-  }
+  function visibleNodes(){ return nodes.filter(n => n.visible); }
   function visibleEdges(){
-    const vis = new Set(visibleNodes().map(n => n.id));
-    return edges.filter(e => e.visible && vis.has(e.source) && vis.has(e.target));
+    const ids = new Set(visibleNodes().map(n => n.id));
+    return edges.filter(e => e.visible && ids.has(e.source) && ids.has(e.target));
+  }
+  function nodeIndexSafe(id){ return nodeIndex.get(id); }
+
+  // ---------- Zoom ----------
+  const zoom = d3.zoom().scaleExtent([0.08, 8]).on("zoom", event => {
+    viewport.attr("transform", event.transform);
+    state.zoom = event.transform.k;
+    scaleLabels(event.transform.k);
+    relabel();
+  });
+  svg.call(zoom).on("dblclick.zoom", null);
+
+  function scaleLabels(k = state.zoom || 1){
+    const size = Math.max(7, 11 / Math.max(0.12, k || 1));
+    nodeSel.select("text")
+      .attr("font-size", size)
+      .attr("y", d => (d.r || 5) + size + 1);
+    nodeSel.select("circle")
+      .attr("stroke-width", d => (state.selected === d.id || state.hover === d.id ? 2.5 : 1) / Math.max(0.35, k));
+    linkSel.attr("stroke-width", d => {
+      const visual = (d.strength || 0) * 0.3 + Math.min(6, d.weight) * 0.08;
+      return Math.max(0.5, Math.min(3.6, 0.4 + visual)) / Math.max(0.4, k);
+    });
   }
 
-  function draw(){
-    const placedLabels = [];
-    const w = W(), h = H();
-    ctx.clearRect(0,0,w,h);
+  function labelVisible(d){
+    return state.showLabels
+      && ((d.r || 5) * (state.zoom || 1) >= 8 || state.selected === d.id || state.hover === d.id);
+  }
+
+  // Labels nur zeigen, wenn sie lesbar sind und keinen anderen Text überdecken.
+  function relabel(){
+    const k = state.zoom || 1;
+    const placed = [];
+    nodeSel.each(function(d){
+      const text = d3.select(this).select("text");
+      let show = labelVisible(d);
+      if (show){
+        const label = d.name + (d.party ? " · " + d.party : "");
+        const size = Math.max(7, 11 / k);
+        const w = label.length * size * 0.52;
+        const x = d.x, y = (d.y || 0) + (d.r || 5) + size;
+        const box = {x: x - w / 2, y: y - size, w: w, h: size * 1.25};
+        const clash = placed.some(q => !(box.x > q.x + q.w || box.x + box.w < q.x ||
+                                         box.y > q.y + q.h || box.y + box.h < q.y));
+        if (clash) show = false; else placed.push(box);
+      }
+      text.style("display", show ? null : "none");
+    });
+  }
+
+  // ---------- Simulation ----------
+  function build(){
+    const vn = visibleNodes();
+    const vl = visibleEdges().map(e => ({
+      source: e.source, target: e.target,
+      weight: e.weight || 1, strength: e.strength || 0, ref: e,
+    }));
+    linkData = vl;
+    visibleKey = vn.map(n => n.id).sort().join(",");
+    const heavy = vn.length > 1200;
+
+    if (simulation) simulation.stop();
+    simulation = d3.forceSimulation(vn)
+      .force("link", d3.forceLink(vl).id(d => d.id)
+        .distance(e => 26 + (e.source.r || 5) + (e.target.r || 5))
+        .strength(e => Math.min(0.9, 0.22 + 0.06 * Math.min(8, e.weight))))
+      .force("charge", d3.forceManyBody().strength(-150).distanceMax(900))
+      .force("center", d3.forceCenter(0, 0))
+      .force("collide", d3.forceCollide(d => (d.r || 5) + 2).strength(1).iterations(2))
+      .on("tick", updatePositions);
+
+    // Vorab ein paar Schritte rechnen, damit sofort etwas zu sehen ist.
+    simulation.stop();
+    const warmup = heavy ? 70 : 140;
+    for (let i = 0; i < warmup; i++) simulation.tick();
+    simulation.alpha(heavy ? 0.12 : 0.3).restart();
+    render();
+  }
+
+  function updatePositions(){
+    linkSel
+      .attr("x1", d => d.source.x).attr("y1", d => d.source.y)
+      .attr("x2", d => d.target.x).attr("y2", d => d.target.y);
+    nodeSel.attr("transform", d => "translate(" + d.x + "," + d.y + ")");
+  }
+
+  // ---------- Zeichnen ----------
+  function render(){
+    const vn = visibleNodes();
+    const vl = linkData;
     const highlight = new Set();
     if (state.selected){
       highlight.add(state.selected);
-      visibleEdges().forEach(e => {
-        if (e.source === state.selected) highlight.add(e.target);
-        if (e.target === state.selected) highlight.add(e.source);
+      vl.forEach(d => {
+        if (d.ref.source === state.selected) highlight.add(d.ref.target);
+        if (d.ref.target === state.selected) highlight.add(d.ref.source);
       });
     }
-    const vEdges = visibleEdges();
     const matches = state.matches;
-    const dim = state.selected ? 0.18 : 1;
 
-    vEdges.forEach(e => {
-      const a = nodeIndex.get(e.source), b = nodeIndex.get(e.target);
-      if (!a || !b) return;
-      const pa = toScreen(a), pb = toScreen(b);
-      const on = state.selected && (e.source === state.selected || e.target === state.selected);
-      const hov = state.hoverEdge === e;
-      ctx.beginPath();
-      ctx.moveTo(pa.x, pa.y); ctx.lineTo(pb.x, pb.y);
-      const sentiLabel = (e.sentiment && e.sentiment.label) || "neutral";
-      const rgb = SENTI_RGB[sentiLabel] || SENTI_RGB.neutral;
-      const strong = sentiLabel !== "neutral";
-      const alphaBase = strong ? 0.55 : Math.min(0.55, 0.12 + ((e.strength ?? 0) * 0.08));
-      let alpha = hov ? 0.95 : on ? 0.8 : alphaBase * dim;
-      if (matches && !(matches.has(e.source) && matches.has(e.target))) alpha *= 0.25;
-      ctx.strokeStyle = hov ? "#ffffff" : on ? "#8fc7ff" : "rgba(" + rgb + "," + alpha.toFixed(2) + ")";
-      const strength = (e.strength ?? 0) || 0;
-      const visual = strength * 0.3 + Math.min(6, e.weight) * 0.08;
-      ctx.lineWidth = hov ? 2.6 : on ? Math.min(5, 0.7 + visual * 1.4)
-                                    : Math.max(0.5, Math.min(2.6, 0.35 + visual));
-      ctx.stroke();
-    });
+    linkSel = linkLayer.selectAll("line.link")
+      .data(vl, d => d.ref.source + "|" + d.ref.target)
+      .join(
+        enter => enter.append("line").attr("class", "link"),
+        update => update,
+        exit => exit.remove());
 
-    nodes.forEach(n => {
-      if (!n.visible) return;
-      const p = toScreen(n);
-      const r = Math.max(2.5, n.r * view.k);
-      const isSel = state.selected === n.id;
-      const isHover = state.hover === n;
-      const inHighlight = !state.selected || highlight.has(n.id);
-      const inQuery = !matches || matches.has(n.id);
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, r, 0, Math.PI*2);
-      ctx.fillStyle = colorOf(n);
-      ctx.globalAlpha = (inHighlight ? 1 : 0.25) * (inQuery ? 1 : 0.16);
-      ctx.fill();
-      ctx.globalAlpha = 1;
-      ctx.lineWidth = isSel || isHover ? 2.4 : 1;
-      ctx.strokeStyle = isSel ? "#ffffff" : isHover ? "#cfe6ff" : "rgba(0,0,0,.45)";
-      ctx.stroke();
+    linkSel
+      .attr("stroke", d => {
+        const label = (d.ref.sentiment && d.ref.sentiment.label) || "neutral";
+        return "rgb(" + (SENTI_RGB[label] || SENTI_RGB.neutral) + ")";
+      })
+      .attr("stroke-opacity", d => {
+        const label = (d.ref.sentiment && d.ref.sentiment.label) || "neutral";
+        let alpha = label !== "neutral" ? 0.6 : Math.min(0.45, 0.06 + (d.ref.strength || 0) * 0.06);
+        if (state.selected) alpha = (d.ref.source === state.selected || d.ref.target === state.selected) ? 0.85 : 0.1;
+        if (matches && !(matches.has(d.ref.source) && matches.has(d.ref.target))) alpha *= 0.2;
+        return alpha;
+      })
+      .on("mouseenter", (event, d) => { state.hoverEdge = d.ref; edgeTooltip(event, d.ref); })
+      .on("mousemove", (event, d) => { edgeTooltip(event, d.ref); })
+      .on("mouseleave", () => { state.hoverEdge = null; hideTooltip(); })
+      .on("click", (event, d) => { event.stopPropagation(); showEdge(d.ref); });
 
-      if (state.showLabels && (view.k > 0.55 || isSel || isHover || n.articles >= 3)) {
-        const fs = Math.max(10, Math.min(15, 11*Math.sqrt(view.k)));
-        ctx.font = (isSel?"600 ":"400 ") + fs + "px 'Segoe UI',sans-serif";
-        ctx.textAlign = "center"; ctx.textBaseline = "top";
-        const label = n.name + (n.party ? " · " + n.party : "");
-        ctx.fillStyle = "rgba(8,12,18,.75)";
-        const tw = ctx.measureText(label).width;
-        ctx.fillRect(p.x - tw/2 - 3, p.y + r + 2, tw + 6, fs + 3);
-        ctx.fillStyle = inHighlight ? "#e9f1fa" : "rgba(200,215,230,.45)";
-        ctx.fillText(label, p.x, p.y + r + 3);
-      }
-    });
+    nodeSel = nodeLayer.selectAll("g.node")
+      .data(vn, d => d.id)
+      .join(
+        enter => {
+          const g = enter.append("g").attr("class", "node");
+          g.append("circle");
+          g.append("text").attr("text-anchor", "middle");
+          g.call(d3.drag()
+            .on("start", (event, d) => {
+              if (!event.active) simulation.alphaTarget(0.25).restart();
+              d.fx = d.x; d.fy = d.y;
+              svgEl.classList.add("dragging");
+            })
+            .on("drag", (event, d) => { d.fx = event.x; d.fy = event.y; })
+            .on("end", () => {
+              simulation.alphaTarget(0);
+              svgEl.classList.remove("dragging");
+            }));
+          g.on("click", (event, d) => { if (!event.defaultPrevented) selectNode(d.id); });
+          g.on("dblclick", (event, d) => {
+            event.stopPropagation();
+            d.fx = null; d.fy = null;
+            simulation.alphaTarget(0.2).restart();
+            setTimeout(() => simulation.alphaTarget(0), 700);
+          });
+          g.on("mouseenter", (event, d) => {
+            state.hover = d.id;
+            nodeTooltip(event, d);
+            relabel();
+            g.select("circle").attr("stroke", "#cfe6ff");
+          });
+          g.on("mousemove", (event, d) => nodeTooltip(event, d));
+          g.on("mouseleave", () => {
+            state.hover = null;
+            hideTooltip();
+            relabel();
+            render();
+          });
+          return g;
+        },
+        update => update,
+        exit => exit.remove());
+
+    nodeSel.select("circle")
+      .attr("r", d => d.r)
+      .attr("fill", d => colorOf(d))
+      .attr("fill-opacity", d => {
+        let alpha = 1;
+        if (state.selected && !highlight.has(d.id)) alpha *= 0.25;
+        if (matches && !matches.has(d.id)) alpha *= 0.15;
+        return alpha;
+      })
+      .attr("stroke", d => state.selected === d.id ? "#ffffff"
+        : (state.hover === d.id ? "#cfe6ff" : "rgba(0,0,0,.5)"));
+
+    nodeSel.select("text")
+      .text(d => d.name + (d.party ? " · " + d.party : ""))
+      .attr("fill", d => (state.selected && !highlight.has(d.id)) ? "rgba(200,215,230,.35)" : "rgba(226,236,247,.92)")
+      .attr("stroke", "rgba(8,12,18,.85)")
+      .attr("paint-order", "stroke")
+      .attr("stroke-linejoin", "round");
+
+    scaleLabels();
+    updatePositions();
+    relabel();
   }
 
-  // ---------- Interaktion ----------
-  let dragging = null, panning = null, movedSinceDown = 0;
+  function draw(){ render(); }
 
-  function hitNode(sx, sy){
-    const vis = visibleNodes().slice().sort((a,b)=>b.r-a.r);
-    for (const n of vis){
-      const p = toScreen(n);
-      const r = Math.max(3.5, n.r * view.k) + 3;
-      if ((sx-p.x)**2 + (sy-p.y)**2 <= r*r) return n;
-    }
-    return null;
+  function fitView(){
+    const vis = visibleNodes().filter(n => Number.isFinite(n.x) && Number.isFinite(n.y));
+    if (!vis.length) return;
+    const core = vis.filter(n => (n.degree || 0) >= 2);
+    const basis = core.length > vis.length * 0.25 ? core : vis;
+    const xs = basis.map(n => n.x).sort((a, b) => a - b);
+    const ys = basis.map(n => n.y).sort((a, b) => a - b);
+    const pick = (arr, q) => arr[Math.min(arr.length - 1, Math.max(0, Math.floor(q * (arr.length - 1))))];
+    const minX = pick(xs, 0.06), maxX = pick(xs, 0.94);
+    const minY = pick(ys, 0.06), maxY = pick(ys, 0.94);
+    if (!Number.isFinite(minX) || maxX - minX > 40000 || maxY - minY > 40000) return;
+    const pad = 70;
+    const k = Math.min(3.5, 1.05 * Math.min((W() - pad * 2) / Math.max(1, maxX - minX),
+                                            (H() - pad * 2) / Math.max(1, maxY - minY)));
+    const tx = W() / 2 - (minX + maxX) / 2 * k;
+    const ty = H() / 2 - (minY + maxY) / 2 * k;
+    svg.transition().duration(260).call(zoom.transform, d3.zoomIdentity.translate(tx, ty).scale(k));
   }
 
-  function hitEdge(sx, sy){
-    let best = null, bestD = 6;
-    visibleEdges().forEach(e => {
-      const a = nodeIndex.get(e.source), b = nodeIndex.get(e.target);
-      if (!a || !b) return;
-      const pa = toScreen(a), pb = toScreen(b);
-      const vx = pb.x-pa.x, vy = pb.y-pa.y;
-      const len2 = vx*vx+vy*vy;
-      let t = len2 ? ((sx-pa.x)*vx + (sy-pa.y)*vy)/len2 : 0;
-      t = Math.max(0, Math.min(1, t));
-      const cx = pa.x + t*vx, cy = pa.y + t*vy;
-      const d = Math.hypot(sx-cx, sy-cy);
-      if (d < bestD){ bestD = d; best = e; }
-    });
-    return best;
-  }
-
-  function pointer(e){
-    const rect = canvas.getBoundingClientRect();
-    return {x: e.clientX - rect.left, y: e.clientY - rect.top};
-  }
-
-  canvas.addEventListener("mousedown", e => {
-    const p = pointer(e);
-    movedSinceDown = 0;
-    const n = hitNode(p.x, p.y);
-    if (n){
-      dragging = n; n.fixed = true;
-      canvas.classList.add("dragging");
-    } else {
-      panning = {x: p.x - view.x, y: p.y - view.y};
-    }
-  });
-
-  canvas.addEventListener("mousemove", e => {
-    const p = pointer(e);
-    if (dragging){
-      const w = toWorld(p.x, p.y);
-      movedSinceDown += Math.abs(w.x - dragging.x) + Math.abs(w.y - dragging.y);
-      dragging.x = w.x; dragging.y = w.y;
-      draw();
-      return;
-    }
-    if (panning){ view.x = p.x - panning.x; view.y = p.y - panning.y; draw(); return; }
-
-    const n = hitNode(p.x, p.y);
-    state.hover = n ? n.id : null;
-    state.hoverEdge = n ? null : hitEdge(p.x, p.y);
-    canvas.style.cursor = n ? "pointer" : state.hoverEdge ? "pointer" : "grab";
-    if (n){
-      showTooltip(p, `<b>${esc(n.name)}</b><br>${esc(n.role||"Funktion unbekannt")}${n.party?" · "+esc(n.party):""}<br><span style="color:#8b98a5">${n.articles} Artikel · ${n.degree} Beziehungen</span>`);
-    } else if (state.hoverEdge){
-      const e2 = state.hoverEdge;
-      const a = nodeIndex.get(e2.source), b = nodeIndex.get(e2.target);
-      const sl = (e2.sentiment && e2.sentiment.label) || "neutral";
-      showTooltip(p, `<b>${esc(a.name)} ↔ ${esc(b.name)}</b><br><span style="color:rgb(${SENTI_RGB[sl]})">${esc(SENTI_LABEL[sl] || sl)}</span><br><span style="color:#8b98a5">Stärke ${e2.strength ?? "–"} · ${e2.weight} gemeinsame Artikel · ${e2.sentences} gemeinsame Sätze</span>`);
-    } else {
-      hideTooltip();
-    }
-    draw();
-  });
-
-  function endDrag(){
-    if (dragging){ dragging.fixed = false; dragging.vx = dragging.vy = 0; dragging = null; }
-    panning = null;
-    canvas.classList.remove("dragging");
-  }
-  canvas.addEventListener("mouseup", e => {
-    const p = pointer(e);
-    const n = hitNode(p.x, p.y);
-    if (movedSinceDown < 4){
-      if (n) selectNode(n.id);
-      else {
-        const ed = hitEdge(p.x, p.y);
-        if (ed) showEdge(ed); else clearSelection();
-      }
-    }
-    endDrag();
-  });
-  canvas.addEventListener("mouseleave", () => { endDrag(); hideTooltip(); state.hover=null; state.hoverEdge=null; draw(); });
-
-  canvas.addEventListener("wheel", e => {
-    e.preventDefault();
-    const p = pointer(e);
-    const w = toWorld(p.x, p.y);
-    const factor = Math.exp(-e.deltaY * 0.0015);
-    view.k = Math.max(0.15, Math.min(4, view.k * factor));
-    view.x = p.x - w.x * view.k;
-    view.y = p.y - w.y * view.k;
-    draw();
-  }, {passive:false});
-
-  function showTooltip(p, html){
+  // ---------- Tooltip ----------
+  function placeTooltip(event, html){
     tooltip.innerHTML = html;
     tooltip.classList.add("on");
-    const wrap = canvas.getBoundingClientRect();
-    tooltip.style.left = Math.min(wrap.width-290, p.x+14) + "px";
-    tooltip.style.top = Math.max(4, p.y-10) + "px";
+    const wrap = svgEl.parentElement.getBoundingClientRect();
+    const x = event.clientX - wrap.left, y = event.clientY - wrap.top;
+    tooltip.style.left = Math.min(wrap.width - 300, x + 14) + "px";
+    tooltip.style.top = Math.max(4, y - 10) + "px";
+  }
+  function nodeTooltip(event, d){
+    placeTooltip(event, `<b>${esc(d.name)}</b><br>${esc(d.role || "Funktion unbekannt")}`
+      + `${d.party ? " · " + esc(d.party) : ""}<br>`
+      + `<span style="color:#8b98a5">${d.articles} Artikel · ${d.degree} Beziehungen</span>`);
+  }
+  function edgeTooltip(event, e){
+    const a = nodeIndexSafe(e.source), b = nodeIndexSafe(e.target);
+    const label = (e.sentiment && e.sentiment.label) || "neutral";
+    placeTooltip(event, `<b>${esc(a ? a.name : e.source)} ↔ ${esc(b ? b.name : e.target)}</b><br>`
+      + `<span style="color:rgb(${SENTI_RGB[label]})">${esc(SENTI_LABEL[label] || label)}</span><br>`
+      + `<span style="color:#8b98a5">Stärke ${e.strength ?? "–"} · ${e.weight} gemeinsame Artikel · ${e.sentences} gemeinsame Sätze</span>`);
   }
   function hideTooltip(){ tooltip.classList.remove("on"); }
+
   function shorten(text, limit){
     if (!text || text.length <= limit) return text || "";
     const cut = text.slice(0, limit);
@@ -973,39 +923,9 @@
     a.click();
   });
 
-  function fitView(){
-    const vis = visibleNodes();
-    if (!vis.length) return;
-    // Perzentil-Grenzen statt Min/Max: Einzelne Ausreißer weit draußen würden
-    // sonst den Maßstab so klein machen, dass der Kern verschwindet.
-    // Für den Bildausschnitt zählt der Zusammenhang, nicht die Randnotizen:
-    // Knoten mit mindestens zwei Beziehungen bilden den Kern.
-    const core = vis.filter(n => Number.isFinite(n.x) && Number.isFinite(n.y) && (n.degree || 0) >= 2);
-    const finite = core.length > vis.length * 0.25
-      ? core
-      : vis.filter(n => Number.isFinite(n.x) && Number.isFinite(n.y));
-    if (!finite.length) { view.k = 0.5; view.x = W()/2; view.y = H()/2; return; }
-    const xs = finite.map(n => n.x).sort((a,b) => a-b);
-    const ys = finite.map(n => n.y).sort((a,b) => a-b);
-    const pick = (arr, q) => arr[Math.min(arr.length-1, Math.max(0, Math.floor(q*(arr.length-1))))];
-    const lo = 0.08, hi = 0.92;
-    let minX = pick(xs, lo), maxX = pick(xs, hi), minY = pick(ys, lo), maxY = pick(ys, hi);
-    if (!Number.isFinite(minX) || !Number.isFinite(maxX) || maxX - minX > 40000 || maxY - minY > 40000){
-      view.k = 0.5; view.x = W()/2; view.y = H()/2; return;
-    }
-    const pad = 90;
-    const k = Math.min(3.5, 1.1 * Math.min((W()-pad*2)/Math.max(1,maxX-minX), (H()-pad*2)/Math.max(1,maxY-minY)));
-    view.k = Math.max(0.2, k);
-    view.x = W()/2 - (minX+maxX)/2 * view.k;
-    view.y = H()/2 - (minY+maxY)/2 * view.k;
-  }
-
   // ---------- Start ----------
   document.getElementById("loading").classList.add("on");
-  resize();
   initLayout();
-  const iterations = nodes.length > 1500 ? 90 : nodes.length > 1200 ? 110 : nodes.length > 700 ? 160 : 260;
-  simulate(iterations);
   const maxWeight = Math.max(...DATA.edges.map(e => e.weight), 3);
   const slider = document.getElementById("weight");
   slider.max = Math.min(8, maxWeight);
@@ -1013,8 +933,9 @@
   initYearRange();
   renderPartyChips();
   renderLegend();
-  fitView();
   applyFilters();
+  build();
+  fitView();
   if (DATA.edges.length){
     const top = DATA.edges[0];
     const a = nodeIndex.get(top.source);
@@ -1022,7 +943,7 @@
   }
   document.getElementById("loading").classList.remove("on");
   // Für Fehlersuche im Browser: window.__DBG__ in der Konsole inspizierbar.
-  window.__DBG__ = {nodes, edges, state, view, separate, simulate, get visibleNodes(){return nodes.filter(n=>n.visible).length;},
+  window.__DBG__ = {nodes, edges, state, svg, zoom, get simulation(){return simulation;}, rebuild: build, separate, get zoomLevel(){return state.zoom;}, get visibleNodes(){return nodes.filter(n=>n.visible).length;},
                     get visibleEdges(){return edges.filter(e=>e.visible).length;},
                     get positions(){return nodes.slice(0,5).map(n=>({name:n.name,x:n.x,y:n.y}));}};
 })();

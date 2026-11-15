@@ -431,13 +431,16 @@ Code getrennt zwischenspeichert. d3 liegt im Repository; es wird nichts von
 einem CDN geladen, die Seite braucht aber einen HTTP-Server (`run.py --open`
 startet einen lokalen).
 
-* Kraft-Layout mit d3-force (Barnes-Hut), Canvas-Rendering, Zoom (Mausrad),
-  Verschieben, Knoten ziehen
-* **Keine überlappenden Knoten:** `forceCollide` rechnet im selben Maßstab wie
-  die gezeichneten Kreise (Radius × Zoom); ein zusätzlicher Durchlauf schiebt
-  Restüberschneidungen auseinander, indem er den kleineren Knoten versetzt
-* Labels nur, wenn der Kreis lesbar groß ist und der Text keinen bereits
-  gezeichneten überdeckt
+Alles läuft über **d3**: Simulation (`d3-force` mit Barnes-Hut), Rendering als
+SVG (`circle`, `line`, `text`), Zoom (`d3-zoom`) und Ziehen (`d3-drag`).
+
+* **Ziehen:** Ein gepackter Knoten folgt der Maus; die Simulation läuft dabei
+  mit erhöhtem Alpha weiter, sodass die verbundenen Knoten mitwandern. Der
+  Knoten bleibt nach dem Loslassen angepinnt (Doppelklick löst ihn wieder)
+* **Keine überlappenden Knoten:** `forceCollide` plus ein eigener
+  Separations-Durchlauf, der Restüberschneidungen auflöst
+* Labels nur ab einer lesbaren Zoomstufe und nur, wenn der Text keinen anderen
+  überdeckt
 * Knotengröße = Artikelanzahl, Kantenstärke = gemeinsame Artikel bzw. Sätze
 * Farbe = Partei, Funktionskategorie oder Netzwerk-Cluster (umschaltbar)
 * Klick auf Person: Funktion, Parteien, frühere Namen, Beziehungen, Artikelliste
