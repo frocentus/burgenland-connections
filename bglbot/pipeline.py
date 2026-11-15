@@ -37,12 +37,12 @@ def read_extra_urls(log=print) -> list[str]:
 
 
 def crawl(fetcher: Fetcher, pages: int, sections: bool, wayback_urls: int = 0,
-          log=print) -> list[str]:
+          wayback_seed: int = 0, log=print) -> list[str]:
     """Sammelt Story-URLs aus Startseite, Ressorts, RSS und optional dem Webarchiv."""
     urls = discover.discover(fetcher, pages=pages, include_sections=sections, log=log)
     if wayback_urls:
         log(f"  Wayback: frage CDX-Index ab (Ziel {wayback_urls} URLs) …")
-        archive = wayback.discover(fetcher, max_urls=wayback_urls, log=log)
+        archive = wayback.discover(fetcher, max_urls=wayback_urls, seed=wayback_seed, log=log)
         seen = set(urls)
         added = [u for u in archive if u not in seen]
         log(f"  Wayback: +{len(added)} zusätzliche URLs")
@@ -199,7 +199,7 @@ def write_outputs(extractions, persons, out_dir: Path = config.OUT_DIR, log=prin
 def run(pages: int = 15, sections: bool = True, limit: int | None = None,
         refresh: bool = False, wayback_urls: int = 0, wiki_refresh: bool = False,
         skip_wiki: bool = False, rebuild: bool = False, incremental: bool = False,
-        holdout: bool = False, log=print) -> dict:
+        holdout: bool = False, wayback_seed: int = 0, log=print) -> dict:
     config.ensure_dirs()
     if rebuild:
         # Schneller Pfad: bereits geparste Artikel + zwischengespeicherte
@@ -223,7 +223,8 @@ def run(pages: int = 15, sections: bool = True, limit: int | None = None,
             log(f"  {len(extras)} Zusatz-Artikel ergänzt")
     else:
         fetcher = Fetcher(refresh=refresh)
-        urls = crawl(fetcher, pages, sections, wayback_urls=wayback_urls, log=log)
+        urls = crawl(fetcher, pages, sections, wayback_urls=wayback_urls,
+                     wayback_seed=wayback_seed, log=log)
         existing: list[parse.Article] = []
         if incremental and (config.OUT_DIR / "artikel.jsonl").exists():
             existing = load_articles_from_jsonl(config.OUT_DIR / "artikel.jsonl", log=log)

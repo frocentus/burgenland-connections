@@ -118,10 +118,9 @@ Index und HTTP-Cache läuft derselbe Aufbau danach in wenigen Sekunden
 ## Ergebnis des Referenzlaufs
 
 ```
-1298 Artikel · 1447 Personen · 4698 Beziehungen · 5521 Nennungen
-Zeitraum 2019-06-03 – 2026-11-14 · 1035 Artikel mit Personennennungen
-davon 60 Beziehungen mit erkennbarem Beziehungston · 432 mit Wikipedia-Artikel
-428 mit Wikidata-Daten · 843 Beziehungen mit gemeinsamem Satz
+1583 Artikel · 1751 Personen · 7091 Beziehungen · 6924 Nennungen
+Zeitraum 2019-06-03 – 2026-11-14 · 1264 Artikel mit Personennennungen
+432 mit Wikipedia-Artikel · 428 mit Wikidata-Daten
 ```
 
 Güte auf der geprüften Stichprobe (34 Artikel, 94 Personen,
@@ -364,7 +363,28 @@ nicht enthalten – dort sitzen die Recall-Verluste. Für eine belastbare Zahl
 muss die Stichprobe zufällig über alle Artikel streuen. Die 1.000 sind daher
 eine Obergrenze, keine Gesamtgüte.
 
-## Fehlende Artikel ergänzen
+## Abdeckung: wie viel des Archivs steckt drin?
+
+Ein vollständiger Lauf verarbeitet **alles, was er findet** – es bleibt keine
+Warteschlange. Aber das Gefundene ist eine Stichprobe:
+
+| Quelle | Umfang | im Korpus |
+|---|---|---|
+| Startseiten-Paginierung (45 Seiten) | 142 URLs | 142 |
+| Wayback-Stichprobe (`--wayback 1200`) | 1.164 URLs | 1.156 (8× 404) |
+| **archiviert insgesamt** | **~20.000–25.000 Story-IDs** | **~6 %** |
+
+Ein erneuter Lauf mit **gleichen** Einstellungen bringt nichts: Die Stichprobe
+war deterministisch und der Index wird zwischengespeichert. Deshalb gibt es
+`--wayback-seed`: Jeder Seed zieht eine andere Scheibe desselben Jahres.
+
+```bash
+python run.py --incremental --wayback 1000 --wayback-seed 3   # ~15 min, +800–900 Artikel
+```
+
+Mit `--incremental` werden nur unbekannte Story-IDs geladen und an den
+bestehenden Korpus gehängt. Sechs solche Läufe (Seeds 1–6) bringen den Korpus
+auf etwa 5.000–6.000 Artikel; jeder Lauf ist unabhängig wiederholbar.
 
 Das Archiv-Sample umfasst rund 150 URLs pro Jahr – nicht jeder Artikel ist
 dabei. Einzelne Seiten lassen sich in `data/extra_urls.txt` eintragen (eine URL

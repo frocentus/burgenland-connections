@@ -51,6 +51,8 @@ def main(argv: list[str] | None = None) -> int:
                         help="HTTP-Cache ignorieren und neu laden")
     parser.add_argument("--wayback", type=int, default=0, metavar="N",
                         help="zusätzlich N Story-URLs aus dem Webarchiv (CDX-API) beziehen")
+    parser.add_argument("--wayback-seed", type=int, default=0, metavar="N",
+                        help="andere Stichprobe aus dem Webarchiv (für wiederholte Läufe)")
     parser.add_argument("--wiki-refresh", action="store_true",
                         help="Wikipedia-Zusammenfassungen neu abfragen (Cache in data/wiki.json)")
     parser.add_argument("--no-wiki", action="store_true",
@@ -92,6 +94,7 @@ def main(argv: list[str] | None = None) -> int:
         rebuild=args.rebuild,
         incremental=args.incremental,
         holdout=args.holdout,
+        wayback_seed=args.wayback_seed,
     )
     _print_summary(graph)
     print(f"\nFertig in {time.time() - started:.1f}s")

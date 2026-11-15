@@ -63,12 +63,14 @@ def _query(fetcher: Fetcher, pattern: str, year: int, limit: int) -> list[tuple[
     return [(row[i_original], row[i_timestamp]) for row in rows[1:]]
 
 
-def _cache_file(max_urls: int, years: tuple[int, ...]):
+def _cache_file(max_urls: int, years: tuple[int, ...], seed: int = 0):
     tag = "-".join(str(y) for y in years)
-    return DATA_DIR / f"wayback-{tag}-{max_urls}.json"
+    suffix = f"-s{seed}" if seed else ""
+    return DATA_DIR / f"wayback-{tag}-{max_urls}{suffix}.json"
 
 
-def _collect_year(fetcher: Fetcher, year: int, budget: int, log=print) -> list[str]:
+def _collect_year(fetcher: Fetcher, year: int, budget: int, seed: int = 0,
+                  log=print) -> list[str]:
     """Sammelt bis zu ``budget`` Story-URLs, die im Jahr ``year`` aufgenommen wurden.
 
     Die CDX-Antwort ist nach URL sortiert, nicht nach Datum. Würde man einfach
@@ -90,15 +92,20 @@ def _collect_year(fetcher: Fetcher, year: int, budget: int, log=print) -> list[s
             elif "/studio/stories/" in original:
                 section = "studio/"
             found[story_id] = f"https://burgenland.orf.at/{section}stories/{story_id}/"
-    urls = list(found.values())
+    urls = sorted(found.values())
     if len(urls) <= budget:
         return urls
+    # Gleichmäßig durchsampeln, aber mit seed-abhängigem Startpunkt: Ein neuer
+    # Seed liefert eine andere Stichprobe desselben Jahres, sodass wiederholte
+    # inkrementelle Läufe den Korpus tatsächlich erweitern.
     step = len(urls) / budget
-    return [urls[int(index * step)] for index in range(budget)]
+    offset = (seed * 7919) % len(urls)
+    return [urls[(int(index * step) + offset) % len(urls)] for index in range(budget)]
 
 
 def discover(fetcher: Fetcher, max_urls: int = 600, per_year: int | None = None,
-             years: tuple[int, ...] = DEFAULT_YEARS, log=print) -> list[str]:
+             years: tuple[int, ...] = DEFAULT_YEARS, seed: int = 0,
+             log=print) -> list[str]:
     """Liefert bis zu ``max_urls`` archivierte Story-URLs, gleichmäßig über die Jahre.
 
     Wichtig: Die CDX-Filter ``from``/``to`` beziehen sich auf den
@@ -106,7 +113,7 @@ def discover(fetcher: Fetcher, max_urls: int = 600, per_year: int | None = None,
     Artikel kann von 2019 stammen. Deshalb wird das Budget auf die Jahre verteilt,
     statt (wie zuvor) nach dem ersten produktiven Jahr abzubrechen.
     """
-    cache_path = _cache_file(max_urls, years)
+    cache_path = _cache_file(max_urls, years, seed)
     if cache_path.exists() and not fetcher.refresh:
         try:
             data = json.loads(cache_path.read_text(encoding="utf-8"))
@@ -122,7 +129,7 @@ def discover(fetcher: Fetcher, max_urls: int = 600, per_year: int | None = None,
     for year in years:
         if len(collected) >= max_urls:
             break
-        urls = _collect_year(fetcher, year, budget_per_year, log=log)
+        urls = _collect_year(fetcher, year, budget_per_year, seed=seed, log=log)
         added = 0
         for url in urls:
             if url in seen:
