@@ -118,9 +118,9 @@ Index und HTTP-Cache läuft derselbe Aufbau danach in wenigen Sekunden
 ## Ergebnis des Referenzlaufs
 
 ```
-1583 Artikel · 1751 Personen · 7091 Beziehungen · 6924 Nennungen
-Zeitraum 2019-06-03 – 2026-11-14 · 1264 Artikel mit Personennennungen
-432 mit Wikipedia-Artikel · 428 mit Wikidata-Daten
+2422 Artikel · 2504 Personen · 9596 Beziehungen · 11523 Nennungen
+Zeitraum 2019-06-03 – 2026-11-14 · 1954 Artikel mit Personennennungen
+672 mit Wikipedia-Artikel · 671 mit Wikidata-Daten
 ```
 
 Güte auf der geprüften Stichprobe (34 Artikel, 94 Personen,
@@ -371,8 +371,8 @@ Warteschlange. Aber das Gefundene ist eine Stichprobe:
 | Quelle | Umfang | im Korpus |
 |---|---|---|
 | Startseiten-Paginierung (45 Seiten) | 142 URLs | 142 |
-| Wayback-Stichprobe (`--wayback 1200`) | 1.164 URLs | 1.156 (8× 404) |
-| **archiviert insgesamt** | **~20.000–25.000 Story-IDs** | **~6 %** |
+| Wayback-Stichproben (Seed 0 + Seed 2) | 1.456 URLs | 1.445 (11× 404) |
+| **archiviert insgesamt** | **~20.000–25.000 Story-IDs** | **~10 %** |
 
 Ein erneuter Lauf mit **gleichen** Einstellungen bringt nichts: Die Stichprobe
 war deterministisch und der Index wird zwischengespeichert. Deshalb gibt es
